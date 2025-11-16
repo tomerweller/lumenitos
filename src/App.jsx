@@ -190,33 +190,15 @@ function App() {
   };
 
   const handleFundAccount = async () => {
-    setLoading(true);
-    setStatusMessage(null);
     try {
       // Fund the wallet - for smart wallets, this funds the signer and transfers to the wallet
-      const result = await fundTestnetAccount(walletAddress, publicKey);
-      const message = result.message || 'Successfully funded account with 10,000 XLM from Friendbot!';
+      await fundTestnetAccount(walletAddress, publicKey);
 
       // Update balance after funding
       await updateBalance();
-
-      // Show success message
-      setStatusMessage({ type: 'success', text: message });
-
-      // Auto-close after 2 seconds
-      setTimeout(() => {
-        setLoading(false);
-        setStatusMessage(null);
-      }, 2000);
     } catch (error) {
       console.error('Error funding account:', error);
-      setStatusMessage({ type: 'error', text: `Failed to fund account: ${error.message}` });
-
-      // Auto-close error after 3 seconds
-      setTimeout(() => {
-        setLoading(false);
-        setStatusMessage(null);
-      }, 3000);
+      throw error;
     }
   };
 

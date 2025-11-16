@@ -15,7 +15,39 @@ function WalletDashboard({
   const [destination, setDestination] = useState('');
   const [amount, setAmount] = useState('');
   const [sending, setSending] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshed, setRefreshed] = useState(false);
+  const [funding, setFunding] = useState(false);
+  const [funded, setFunded] = useState(false);
+
+  const shortenAddress = (address) => {
+    if (!address || address.length < 8) return address;
+    return `${address.substring(0, 4)}....${address.substring(address.length - 4)}`;
+  };
+
+  const handleRefresh = async (e) => {
+    e.preventDefault();
+    setRefreshing(true);
+    await onRefreshBalance();
+    setRefreshing(false);
+    setRefreshed(true);
+    setTimeout(() => setRefreshed(false), 2000);
+  };
+
+  const handleFund = async (e) => {
+    e.preventDefault();
+    setFunding(true);
+    try {
+      await onFundAccount();
+      setFunding(false);
+      setFunded(true);
+      setTimeout(() => setFunded(false), 2000);
+    } catch (error) {
+      setFunding(false);
+      // Error is already logged in parent
+    }
+  };
 
   const handleSend = async (e) => {
     e.preventDefault();
@@ -32,158 +64,106 @@ function WalletDashboard({
     }
   };
 
-  const copyToClipboard = (text) => {
+  const copyToClipboard = (text, label) => {
     navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const truncateAddress = (address) => {
-    if (!address) return '';
-    return `${address.slice(0, 8)}...${address.slice(-8)}`;
+    setCopied(label);
+    setTimeout(() => setCopied(''), 2000);
   };
 
   return (
     <div className="wallet-dashboard">
-      <div className="dashboard-container">
-        <header className="dashboard-header">
-          <h1>Lumenitos</h1>
-        </header>
+      <h1>LUMENITOS</h1>
+      <p className="disclaimer">THIS IS AN EXPERIMENTAL STELLAR SMART WALLET. DON'T BE STUPID.</p>
 
-        <div className="balance-card">
-        <div className="address-display">
-            <code>{truncateAddress(walletAddress)}</code>
-            <button
-              className="btn-copy"
-              onClick={() => copyToClipboard(walletAddress)}
-              title="Copy full address"
-            >
-              {copied ? '✓' : '📋'}
-            </button>
-          </div>
-          <div className="balance-display">
-            <h2 className="balance-amount">{balance} XLM</h2>
-            <button
-              className="btn-refresh"
-              onClick={onRefreshBalance}
-              disabled={loading}
-              title="Refresh balance"
-            >
-              🔄
-            </button>
-          </div>
-        </div>
+      <hr />
 
-        <div className="signer-info">
-          <p className="signer-label">Signer Public Key</p>
-          <div className="signer-display">
-            <code className="signer-key">{truncateAddress(publicKey)}</code>
-            <button
-              className="btn-copy"
-              onClick={() => copyToClipboard(publicKey)}
-              title="Copy signer public key"
-            >
-              {copied ? '✓' : '📋'}
-            </button>
-          </div>
-        </div>
+      <p>
+        network: stellar testnet (<a href="#" onClick={(e) => { e.preventDefault(); }}>mainnet</a>)
+      </p>
 
-        <div className="actions">
-          <button
-            className="btn btn-primary btn-large"
-            onClick={() => setShowSend(true)}
-            disabled={loading || parseFloat(balance) === 0}
-          >
-            Send
-          </button>
-          <button
-            className="btn btn-success btn-large"
-            onClick={onFundAccount}
-            disabled={loading}
-            title="Get 10,000 test XLM from Friendbot"
-          >
-            💧 Fund Account
-          </button>
-          <button
-            className="btn btn-secondary btn-large"
-            onClick={onReset}
-            disabled={loading}
-          >
-            Logout
-          </button>
-        </div>
+      <p>
+        signer: {shortenAddress(publicKey)}{' '}
+        (<a href="#" onClick={(e) => { e.preventDefault(); copyToClipboard(publicKey, 'signer'); }}>
+          {copied === 'signer' ? 'copied!' : 'copy'}
+        </a>)
+      </p>
 
-        {showSend && (
-          <div className="modal-overlay" onClick={() => !sending && setShowSend(false)}>
-            <div className="modal" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
-                <h3>Send XLM</h3>
-                <button
-                  className="btn-close"
-                  onClick={() => setShowSend(false)}
+      <p>
+        wallet: {shortenAddress(walletAddress)}{' '}
+        (<a href="#" onClick={(e) => { e.preventDefault(); copyToClipboard(walletAddress, 'wallet'); }}>
+          {copied === 'wallet' ? 'copied!' : 'copy'}
+        </a>)
+      </p>
+
+      <p>
+        balance: {balance} XLM{' '}
+        (<a href="#" onClick={handleRefresh}>
+          {refreshing ? 'refreshing' : refreshed ? 'refreshed!' : 'refresh'}
+        </a>{parseFloat(balance) === 0 && (
+          <>{', '}
+          <a href="#" onClick={handleFund}>
+            {funding ? 'funding' : funded ? 'funded!' : 'fund'}
+          </a></>
+        )})
+      </p>
+
+      <hr />
+
+      <p>
+        <a href="#" onClick={(e) => { e.preventDefault(); setShowSend(true); }}>send</a>
+      </p>
+
+      <p>
+        <a href="#" onClick={(e) => { e.preventDefault(); onReset(); }}>delete</a>
+      </p>
+
+      {showSend && (
+        <div className="modal-overlay" onClick={() => !sending && setShowSend(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>send xlm</h3>
+
+            <form onSubmit={handleSend}>
+              <div className="form-group">
+                <label htmlFor="destination">destination address</label>
+                <input
+                  type="text"
+                  id="destination"
+                  value={destination}
+                  onChange={(e) => setDestination(e.target.value)}
+                  placeholder="GXXX..."
+                  required
                   disabled={sending}
-                >
-                  ✕
-                </button>
+                />
               </div>
 
-              <form onSubmit={handleSend}>
-                <div className="form-group">
-                  <label htmlFor="destination">Destination Address</label>
-                  <input
-                    type="text"
-                    id="destination"
-                    value={destination}
-                    onChange={(e) => setDestination(e.target.value)}
-                    placeholder="GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-                    required
-                    disabled={sending}
-                  />
-                </div>
+              <div className="form-group">
+                <label htmlFor="amount">amount (xlm)</label>
+                <input
+                  type="number"
+                  id="amount"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="0.00"
+                  step="0.0000001"
+                  min="0.0000001"
+                  max={balance}
+                  required
+                  disabled={sending}
+                />
+                <small>available: {balance} xlm</small>
+              </div>
 
-                <div className="form-group">
-                  <label htmlFor="amount">Amount (XLM)</label>
-                  <input
-                    type="number"
-                    id="amount"
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    placeholder="0.00"
-                    step="0.0000001"
-                    min="0.0000001"
-                    max={balance}
-                    required
-                    disabled={sending}
-                  />
-                  <small>Available: {balance} XLM</small>
-                </div>
-
-                <div className="modal-actions">
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => setShowSend(false)}
-                    disabled={sending}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                    disabled={sending}
-                  >
-                    {sending ? 'Sending...' : 'Send'}
-                  </button>
-                </div>
-              </form>
-            </div>
+              <p>
+                <a href="#" onClick={(e) => { e.preventDefault(); setShowSend(false); }}>cancel</a>
+                {' | '}
+                <a href="#" onClick={(e) => { e.preventDefault(); handleSend(e); }}>
+                  {sending ? 'sending...' : 'send'}
+                </a>
+              </p>
+            </form>
           </div>
-        )}
-
-        <div className="testnet-badge">
-          Testnet Mode
         </div>
-      </div>
+      )}
     </div>
   );
 }
