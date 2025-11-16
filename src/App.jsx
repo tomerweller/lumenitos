@@ -203,15 +203,13 @@ function App() {
   };
 
   const handleReset = () => {
-    if (window.confirm('Are you sure you want to reset your wallet? This will delete your keys permanently!')) {
-      clearKeypair();
-      localStorage.removeItem('user_email');
-      setHasWallet(false);
-      setPublicKey(null);
-      setWalletAddress(null);
-      setBalance('0');
-      setUserEmail(null);
-    }
+    clearKeypair();
+    localStorage.removeItem('user_email');
+    setHasWallet(false);
+    setPublicKey(null);
+    setWalletAddress(null);
+    setBalance('0');
+    setUserEmail(null);
   };
 
   // Show full-page loading only during initial wallet setup

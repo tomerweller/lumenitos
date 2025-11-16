@@ -6,14 +6,16 @@
 }
 
 .wallet-dashboard h1 {
-  font-size: 1.5em;
-  font-weight: normal;
-  margin-bottom: 0.5em;
+  font-size: 2.5em;
+  font-weight: 600;
+  margin-bottom: 0.3em;
+  line-height: 1.3;
 }
 
 .wallet-dashboard p {
-  margin: 0.8em 0;
+  margin: 1em 0;
   line-height: 1.6;
+  font-size: 1em;
 }
 
 .wallet-dashboard .disclaimer {
@@ -25,17 +27,28 @@
 
 .wallet-dashboard a {
   color: var(--primary-color);
-  text-decoration: none;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
 }
 
 .wallet-dashboard a:hover {
-  text-decoration: underline;
+  background-color: var(--primary-color);
+  color: var(--background);
+  text-decoration: none;
 }
 
 .wallet-dashboard hr {
   border: none;
   border-top: 1px solid var(--border-color);
   margin: 1.5em 0;
+}
+
+.theme-toggle {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  font-size: 0.9em;
 }
 
 /* Modal styles */

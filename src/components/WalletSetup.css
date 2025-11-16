@@ -63,18 +63,12 @@
 }
 
 .info-box ul {
-  list-style: none;
-  padding: 0;
+  list-style: disc;
+  padding-left: 1.5rem;
 }
 
 .info-box li {
   padding: 0.25rem 0;
   color: var(--text-secondary);
   font-size: 12px;
-}
-
-.info-box li::before {
-  content: "→ ";
-  color: var(--text-secondary);
-  margin-right: 0.5rem;
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './WalletDashboard.css';
 
 function WalletDashboard({
@@ -12,6 +12,7 @@ function WalletDashboard({
   loading
 }) {
   const [showSend, setShowSend] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
   const [destination, setDestination] = useState('');
   const [amount, setAmount] = useState('');
   const [sending, setSending] = useState(false);
@@ -20,6 +21,20 @@ function WalletDashboard({
   const [refreshed, setRefreshed] = useState(false);
   const [funding, setFunding] = useState(false);
   const [funded, setFunded] = useState(false);
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('theme');
+    return saved || 'dark';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = (e) => {
+    e.preventDefault();
+    setTheme(theme === 'dark' ? 'light' : 'dark');
+  };
 
   const shortenAddress = (address) => {
     if (!address || address.length < 8) return address;
@@ -43,6 +58,16 @@ function WalletDashboard({
       setFunding(false);
       setFunded(true);
       setTimeout(() => setFunded(false), 2000);
+
+      // Refresh balance every second for 5 seconds after funding
+      let count = 0;
+      const intervalId = setInterval(() => {
+        count++;
+        onRefreshBalance();
+        if (count >= 5) {
+          clearInterval(intervalId);
+        }
+      }, 1000);
     } catch (error) {
       setFunding(false);
       // Error is already logged in parent
@@ -57,6 +82,16 @@ function WalletDashboard({
       setDestination('');
       setAmount('');
       setShowSend(false);
+
+      // Refresh balance every second for 5 seconds after sending
+      let count = 0;
+      const intervalId = setInterval(() => {
+        count++;
+        onRefreshBalance();
+        if (count >= 5) {
+          clearInterval(intervalId);
+        }
+      }, 1000);
     } catch (error) {
       // Error already handled in parent
     } finally {
@@ -78,24 +113,6 @@ function WalletDashboard({
       <hr />
 
       <p>
-        network: stellar testnet (<a href="#" onClick={(e) => { e.preventDefault(); }}>mainnet</a>)
-      </p>
-
-      <p>
-        signer: {shortenAddress(publicKey)}{' '}
-        (<a href="#" onClick={(e) => { e.preventDefault(); copyToClipboard(publicKey, 'signer'); }}>
-          {copied === 'signer' ? 'copied!' : 'copy'}
-        </a>)
-      </p>
-
-      <p>
-        wallet: {shortenAddress(walletAddress)}{' '}
-        (<a href="#" onClick={(e) => { e.preventDefault(); copyToClipboard(walletAddress, 'wallet'); }}>
-          {copied === 'wallet' ? 'copied!' : 'copy'}
-        </a>)
-      </p>
-
-      <p>
         balance: {balance} XLM{' '}
         (<a href="#" onClick={handleRefresh}>
           {refreshing ? 'refreshing' : refreshed ? 'refreshed!' : 'refresh'}
@@ -107,6 +124,27 @@ function WalletDashboard({
         )})
       </p>
 
+      <p>
+        wallet: {shortenAddress(walletAddress)}{' '}
+        (<a href="#" onClick={(e) => { e.preventDefault(); copyToClipboard(walletAddress, 'wallet'); }}>
+          {copied === 'wallet' ? 'copied!' : 'copy'}
+        </a>,{' '}
+        <a href={`https://stellar.expert/explorer/testnet/contract/${walletAddress}`} target="_blank" rel="noopener noreferrer">
+          explore
+        </a>)
+      </p>
+
+      <p>
+        signer: {shortenAddress(publicKey)}{' '}
+        (<a href="#" onClick={(e) => { e.preventDefault(); copyToClipboard(publicKey, 'signer'); }}>
+          {copied === 'signer' ? 'copied!' : 'copy'}
+        </a>)
+      </p>
+
+      <p>
+        network: testnet (<a href="#" onClick={(e) => { e.preventDefault(); }}>mainnet</a>)
+      </p>
+
       <hr />
 
       <p>
@@ -114,8 +152,14 @@ function WalletDashboard({
       </p>
 
       <p>
-        <a href="#" onClick={(e) => { e.preventDefault(); onReset(); }}>delete</a>
+        <a href="#" onClick={(e) => { e.preventDefault(); setShowDelete(true); }}>delete</a>
       </p>
+
+      <div className="theme-toggle">
+        <a href="#" onClick={toggleTheme}>
+          {theme === 'dark' ? 'bright' : 'dark'}
+        </a>
+      </div>
 
       {showSend && (
         <div className="modal-overlay" onClick={() => !sending && setShowSend(false)}>
@@ -161,6 +205,22 @@ function WalletDashboard({
                 </a>
               </p>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showDelete && (
+        <div className="modal-overlay" onClick={() => setShowDelete(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>delete wallet</h3>
+
+            <p>are you sure you want to delete your wallet? this will permanently delete your keys!</p>
+
+            <p>
+              <a href="#" onClick={(e) => { e.preventDefault(); setShowDelete(false); }}>cancel</a>
+              {' | '}
+              <a href="#" onClick={(e) => { e.preventDefault(); onReset(); }}>delete</a>
+            </p>
           </div>
         </div>
       )}
