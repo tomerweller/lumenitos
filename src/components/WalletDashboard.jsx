@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 import './WalletDashboard.css';
 
 function WalletDashboard({
@@ -13,6 +14,7 @@ function WalletDashboard({
 }) {
   const [showSend, setShowSend] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
+  const [showQR, setShowQR] = useState(false);
   const [destination, setDestination] = useState('');
   const [amount, setAmount] = useState('');
   const [sending, setSending] = useState(false);
@@ -148,6 +150,10 @@ function WalletDashboard({
       <hr />
 
       <p>
+        <a href="#" onClick={(e) => { e.preventDefault(); setShowQR(true); }}>receive</a>
+      </p>
+
+      <p>
         <a href="#" onClick={(e) => { e.preventDefault(); setShowSend(true); }}>send</a>
       </p>
 
@@ -220,6 +226,22 @@ function WalletDashboard({
               <a href="#" onClick={(e) => { e.preventDefault(); setShowDelete(false); }}>cancel</a>
               {' | '}
               <a href="#" onClick={(e) => { e.preventDefault(); onReset(); }}>delete</a>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {showQR && (
+        <div className="modal-overlay" onClick={() => setShowQR(false)}>
+          <div className="modal qr-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="qr-code-container">
+              <QRCodeSVG value={walletAddress} size={256} />
+            </div>
+
+            <p className="qr-address">{walletAddress}</p>
+
+            <p>
+              <a href="#" onClick={(e) => { e.preventDefault(); setShowQR(false); }}>close</a>
             </p>
           </div>
         </div>

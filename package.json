@@ -8,11 +8,17 @@
     "build": "vite build",
     "preview": "vite preview"
   },
-  "keywords": ["stellar", "wallet", "pwa", "crossmint"],
+  "keywords": [
+    "stellar",
+    "wallet",
+    "pwa",
+    "crossmint"
+  ],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@stellar/stellar-sdk": "^14.3.2",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
