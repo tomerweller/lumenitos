@@ -1,3 +1,5 @@
+'use client'
+
 import React, { useState, useEffect } from 'react';
 import * as StellarSdk from '@stellar/stellar-sdk';
 import {
@@ -10,19 +12,19 @@ import {
   clearKeypair,
   fundTestnetAccount,
   signMessage
-} from './utils/stellar';
+} from '@/utils/stellar';
 import {
   createWallet,
   getWallet,
   getWalletBalance,
   transferToken,
   approveTransaction
-} from './utils/crossmint';
-import WalletSetup from './components/WalletSetup';
-import WalletDashboard from './components/WalletDashboard';
+} from '@/utils/crossmint';
+import WalletSetup from '@/components/WalletSetup';
+import WalletDashboard from '@/components/WalletDashboard';
 import './App.css';
 
-function App() {
+export default function Home() {
   const [hasWallet, setHasWallet] = useState(false);
   const [loading, setLoading] = useState(true);
   const [publicKey, setPublicKey] = useState(null);
@@ -259,5 +261,3 @@ function App() {
     </div>
   );
 }
-
-export default App;
