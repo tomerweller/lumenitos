@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
+import config from '../utils/config';
 import './WalletDashboard.css';
 
 function WalletDashboard({
@@ -133,8 +134,8 @@ function WalletDashboard({
         (<a href="#" onClick={(e) => { e.preventDefault(); copyToClipboard(walletAddress, 'wallet'); }}>
           {copied === 'wallet' ? 'copied!' : 'copy'}
         </a>,{' '}
-        <a href={`https://stellar.expert/explorer/testnet/contract/${walletAddress}`} target="_blank" rel="noopener noreferrer">
-          explore
+        <a href={`${config.stellar.explorerUrl}/contract/${walletAddress}`} target="_blank" rel="noopener noreferrer">
+          view on stellar.expert
         </a>)
       </p>
 
@@ -146,7 +147,9 @@ function WalletDashboard({
       </p>
 
       <p>
-        network: testnet (<a href="#" onClick={(e) => { e.preventDefault(); }}>mainnet</a>)
+        network: {config.stellar.network} (<a href="#" onClick={(e) => { e.preventDefault(); }}>
+          {config.stellar.network === 'testnet' ? 'mainnet' : 'testnet'}
+        </a>)
       </p>
 
       <hr />

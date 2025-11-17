@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-
-const CROSSMINT_API_BASE = 'https://staging.crossmint.com/api';
-const API_VERSION = '2025-06-09';
+import { config } from '@/utils/config';
 
 export async function GET(request) {
   try {
@@ -16,12 +14,12 @@ export async function GET(request) {
     }
 
     const cacheBuster = `_t=${Date.now()}`;
-    const url = `${CROSSMINT_API_BASE}/${API_VERSION}/wallets/${encodeURIComponent(locator)}/balances?tokens=XLM&${cacheBuster}`;
+    const url = `${config.crossmint.apiBase}/${config.crossmint.apiVersion}/wallets/${encodeURIComponent(locator)}/balances?tokens=XLM&${cacheBuster}`;
 
     const response = await fetch(url, {
       method: 'GET',
       headers: {
-        'X-API-KEY': process.env.CROSSMINT_API_KEY,
+        'X-API-KEY': config.crossmint.apiKey,
         'Cache-Control': 'no-cache'
       }
     });

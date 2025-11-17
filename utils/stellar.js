@@ -1,4 +1,5 @@
 import * as StellarSdk from '@stellar/stellar-sdk';
+import config from './config';
 
 const STORAGE_KEY = 'stellar_keypair';
 
@@ -63,35 +64,23 @@ export function hasKeypair() {
  * Transfer XLM to a smart contract address using the Stellar Asset Contract (SAC)
  * @param {string} destination - The destination contract address
  * @param {string} amount - Amount of XLM to transfer (in XLM, not stroops)
- * @param {boolean} isTestnet - Whether to use testnet
  * @returns {Promise<object>} The transaction result
  */
-export async function buildSACTransfer(destination, amount, isTestnet = true) {
+export async function buildSACTransfer(destination, amount) {
   const keypair = getStoredKeypair();
   if (!keypair) {
     throw new Error('No keypair found in storage');
   }
 
-  // Use Soroban RPC server for contract operations
-  const rpcUrl = isTestnet
-    ? 'https://soroban-testnet.stellar.org'
-    : 'https://soroban-mainnet.stellar.org';
-
   // Create RPC server - in SDK v14+, use rpc namespace
-  const rpcServer = new StellarSdk.rpc.Server(rpcUrl);
+  const rpcServer = new StellarSdk.rpc.Server(config.stellar.sorobanRpcUrl);
 
   // Use Horizon for loading account
-  const horizonServer = new StellarSdk.Horizon.Server(
-    isTestnet
-      ? 'https://horizon-testnet.stellar.org'
-      : 'https://horizon.stellar.org'
-  );
+  const horizonServer = new StellarSdk.Horizon.Server(config.stellar.horizonUrl);
 
   // Get the native XLM SAC contract ID
   const xlmAsset = StellarSdk.Asset.native();
-  const xlmContractId = xlmAsset.contractId(
-    isTestnet ? StellarSdk.Networks.TESTNET : StellarSdk.Networks.PUBLIC
-  );
+  const xlmContractId = xlmAsset.contractId(config.networkPassphrase);
 
   // Convert amount to stroops (1 XLM = 10,000,000 stroops)
   const stroops = Math.floor(parseFloat(amount) * 10000000);
@@ -108,9 +97,7 @@ export async function buildSACTransfer(destination, amount, isTestnet = true) {
   // Build the transaction with contract invocation
   let transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
     fee: StellarSdk.BASE_FEE,
-    networkPassphrase: isTestnet
-      ? StellarSdk.Networks.TESTNET
-      : StellarSdk.Networks.PUBLIC
+    networkPassphrase: config.networkPassphrase
   })
     .addOperation(
       contract.call(
@@ -163,7 +150,7 @@ export async function fundTestnetAccount(address, signerPublicKey = null) {
     // Determine which address to fund with Friendbot
     const addressToFund = address.startsWith('C') && signerPublicKey ? signerPublicKey : address;
 
-    const friendbotUrl = `https://friendbot.stellar.org?addr=${encodeURIComponent(addressToFund)}`;
+    const friendbotUrl = `${config.stellar.friendbotUrl}?addr=${encodeURIComponent(addressToFund)}`;
     const response = await fetch(friendbotUrl);
 
     // Handle case where account is already funded
@@ -186,7 +173,7 @@ export async function fundTestnetAccount(address, signerPublicKey = null) {
     // For smart wallets, transfer XLM using SAC
     if (address.startsWith('C') && signerPublicKey) {
       const transferAmount = '5000';
-      const transferResult = await buildSACTransfer(address, transferAmount, true);
+      const transferResult = await buildSACTransfer(address, transferAmount);
 
       return {
         friendbot: friendbotResult,
@@ -204,15 +191,10 @@ export async function fundTestnetAccount(address, signerPublicKey = null) {
 /**
  * Get account balance from Stellar network
  * @param {string} publicKey - The public key of the account
- * @param {boolean} isTestnet - Whether to use testnet (default: true)
  * @returns {Promise<string>} The XLM balance
  */
-export async function getBalance(publicKey, isTestnet = true) {
-  const server = new StellarSdk.Horizon.Server(
-    isTestnet
-      ? 'https://horizon-testnet.stellar.org'
-      : 'https://horizon.stellar.org'
-  );
+export async function getBalance(publicKey) {
+  const server = new StellarSdk.Horizon.Server(config.stellar.horizonUrl);
 
   try {
     const account = await server.loadAccount(publicKey);
@@ -233,28 +215,21 @@ export async function getBalance(publicKey, isTestnet = true) {
  * Build and sign a payment transaction
  * @param {string} destination - Destination public key
  * @param {string} amount - Amount of XLM to send
- * @param {boolean} isTestnet - Whether to use testnet (default: true)
  * @returns {Promise<string>} The signed transaction XDR
  */
-export async function buildPaymentTransaction(destination, amount, isTestnet = true) {
+export async function buildPaymentTransaction(destination, amount) {
   const keypair = getStoredKeypair();
   if (!keypair) {
     throw new Error('No keypair found in storage');
   }
 
-  const server = new StellarSdk.Horizon.Server(
-    isTestnet
-      ? 'https://horizon-testnet.stellar.org'
-      : 'https://horizon.stellar.org'
-  );
+  const server = new StellarSdk.Horizon.Server(config.stellar.horizonUrl);
 
   const sourceAccount = await server.loadAccount(keypair.publicKey());
 
   const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
     fee: StellarSdk.BASE_FEE,
-    networkPassphrase: isTestnet
-      ? StellarSdk.Networks.TESTNET
-      : StellarSdk.Networks.PUBLIC
+    networkPassphrase: config.networkPassphrase
   })
     .addOperation(
       StellarSdk.Operation.payment({
@@ -274,21 +249,14 @@ export async function buildPaymentTransaction(destination, amount, isTestnet = t
 /**
  * Submit a signed transaction to the network
  * @param {string} transactionXdr - The signed transaction XDR
- * @param {boolean} isTestnet - Whether to use testnet (default: true)
  * @returns {Promise<object>} The transaction result
  */
-export async function submitTransaction(transactionXdr, isTestnet = true) {
-  const server = new StellarSdk.Horizon.Server(
-    isTestnet
-      ? 'https://horizon-testnet.stellar.org'
-      : 'https://horizon.stellar.org'
-  );
+export async function submitTransaction(transactionXdr) {
+  const server = new StellarSdk.Horizon.Server(config.stellar.horizonUrl);
 
   const transaction = StellarSdk.TransactionBuilder.fromXDR(
     transactionXdr,
-    isTestnet
-      ? StellarSdk.Networks.TESTNET
-      : StellarSdk.Networks.PUBLIC
+    config.networkPassphrase
   );
 
   return await server.submitTransaction(transaction);

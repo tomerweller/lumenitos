@@ -1,17 +1,15 @@
 import { NextResponse } from 'next/server';
-
-const CROSSMINT_API_BASE = 'https://staging.crossmint.com/api';
-const API_VERSION = '2025-06-09';
+import { config } from '@/utils/config';
 
 export async function POST(request) {
   try {
     const body = await request.json();
     const { publicKey, userEmail } = body;
 
-    const response = await fetch(`${CROSSMINT_API_BASE}/${API_VERSION}/wallets`, {
+    const response = await fetch(`${config.crossmint.apiBase}/${config.crossmint.apiVersion}/wallets`, {
       method: 'POST',
       headers: {
-        'X-API-KEY': process.env.CROSSMINT_API_KEY,
+        'X-API-KEY': config.crossmint.apiKey,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -58,11 +56,11 @@ export async function GET(request) {
     }
 
     const response = await fetch(
-      `${CROSSMINT_API_BASE}/${API_VERSION}/wallets/${encodeURIComponent(locator)}`,
+      `${config.crossmint.apiBase}/${config.crossmint.apiVersion}/wallets/${encodeURIComponent(locator)}`,
       {
         method: 'GET',
         headers: {
-          'X-API-KEY': process.env.CROSSMINT_API_KEY
+          'X-API-KEY': config.crossmint.apiKey
         }
       }
     );

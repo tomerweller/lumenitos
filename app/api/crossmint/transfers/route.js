@@ -1,7 +1,5 @@
 import { NextResponse } from 'next/server';
-
-const CROSSMINT_API_BASE = 'https://staging.crossmint.com/api';
-const API_VERSION = '2025-06-09';
+import { config } from '@/utils/config';
 
 export async function POST(request) {
   try {
@@ -9,11 +7,11 @@ export async function POST(request) {
     const { locator, tokenLocator, transferParams } = body;
 
     const response = await fetch(
-      `${CROSSMINT_API_BASE}/${API_VERSION}/wallets/${encodeURIComponent(locator)}/tokens/${encodeURIComponent(tokenLocator)}/transfers`,
+      `${config.crossmint.apiBase}/${config.crossmint.apiVersion}/wallets/${encodeURIComponent(locator)}/tokens/${encodeURIComponent(tokenLocator)}/transfers`,
       {
         method: 'POST',
         headers: {
-          'X-API-KEY': process.env.CROSSMINT_API_KEY,
+          'X-API-KEY': config.crossmint.apiKey,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify(transferParams)
