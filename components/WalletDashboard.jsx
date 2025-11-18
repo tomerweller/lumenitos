@@ -121,7 +121,7 @@ function WalletDashboard({
         balance: {balance} XLM{' '}
         (<a href="#" onClick={handleRefresh}>
           {refreshing ? 'refreshing' : refreshed ? 'refreshed!' : 'refresh'}
-        </a>{parseFloat(balance) === 0 && (
+        </a>{parseFloat(balance) === 0 && config.isTestnet && (
           <>{', '}
           <a href="#" onClick={handleFund}>
             {funding ? 'funding' : funded ? 'funded!' : 'fund'}
@@ -135,7 +135,7 @@ function WalletDashboard({
           {copied === 'wallet' ? 'copied!' : 'copy'}
         </a>,{' '}
         <a href={`${config.stellar.explorerUrl}/contract/${walletAddress}`} target="_blank" rel="noopener noreferrer">
-          view on stellar.expert
+          explore
         </a>)
       </p>
 
