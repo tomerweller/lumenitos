@@ -13,7 +13,9 @@ function WalletDashboard({
   onRefreshBalance,
   onReset,
   onFundAccount,
-  loading
+  onCreateWallet,
+  loading,
+  creatingWallet
 }) {
   const [showSend, setShowSend] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
@@ -109,6 +111,24 @@ function WalletDashboard({
     setCopied(label);
     setTimeout(() => setCopied(''), 2000);
   };
+
+  // Show create wallet link if no wallet exists
+  if (!walletAddress) {
+    return (
+      <div className="wallet-dashboard">
+        <h1>LUMENITOS</h1>
+        <p className="disclaimer">THIS IS AN EXPERIMENTAL STELLAR SMART WALLET. DON'T BE STUPID.</p>
+
+        <hr />
+
+        <p>
+          <a href="#" onClick={(e) => { e.preventDefault(); onCreateWallet(); }}>
+            {creatingWallet ? 'loading wallet!' : 'create wallet'}
+          </a>
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="wallet-dashboard">

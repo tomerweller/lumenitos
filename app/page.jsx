@@ -20,7 +20,6 @@ import {
   transferToken,
   approveTransaction
 } from '@/utils/crossmint';
-import WalletSetup from '@/components/WalletSetup';
 import WalletDashboard from '@/components/WalletDashboard';
 import './App.css';
 
@@ -230,20 +229,18 @@ export default function Home() {
 
   return (
     <div className="app">
-      {!hasWallet ? (
-        <WalletSetup onCreateWallet={handleCreateWallet} loading={loading} />
-      ) : (
-        <WalletDashboard
-          publicKey={publicKey}
-          walletAddress={walletAddress}
-          balance={balance}
-          onSendXLM={handleSendXLM}
-          onRefreshBalance={updateBalance}
-          onFundAccount={handleFundAccount}
-          onReset={handleReset}
-          loading={loading}
-        />
-      )}
+      <WalletDashboard
+        publicKey={publicKey}
+        walletAddress={walletAddress}
+        balance={balance}
+        onSendXLM={handleSendXLM}
+        onRefreshBalance={updateBalance}
+        onFundAccount={handleFundAccount}
+        onCreateWallet={handleCreateWallet}
+        onReset={handleReset}
+        loading={loading}
+        creatingWallet={loading && !hasWallet}
+      />
       {loading && hasWallet && (
         <div className="loading-overlay">
           <div className={`loading ${statusMessage ? 'status-' + statusMessage.type : ''}`}>
