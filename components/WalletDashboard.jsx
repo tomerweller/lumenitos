@@ -38,6 +38,21 @@ function WalletDashboard({
     localStorage.setItem('theme', theme);
   }, [theme]);
 
+  // Reset dialog states when walletAddress changes (new wallet created or deleted)
+  useEffect(() => {
+    setShowSend(false);
+    setShowDelete(false);
+    setShowQR(false);
+    setDestination('');
+    setAmount('');
+    setSending(false);
+    setCopied('');
+    setRefreshing(false);
+    setRefreshed(false);
+    setFunding(false);
+    setFunded(false);
+  }, [walletAddress]);
+
   const toggleTheme = (e) => {
     e.preventDefault();
     setTheme(theme === 'dark' ? 'light' : 'dark');
