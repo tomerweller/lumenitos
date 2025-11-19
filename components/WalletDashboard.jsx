@@ -78,19 +78,16 @@ function WalletDashboard({
   const handleRefresh = async (e) => {
     e.preventDefault();
     setRefreshing(true);
-    await onRefreshBalance();
-    setRefreshing(false);
-    setRefreshed(true);
-    setTimeout(() => setRefreshed(false), 2000);
-  };
-
-  const handleRefreshClassic = async (e) => {
-    e.preventDefault();
     setRefreshingClassic(true);
-    await onRefreshClassicBalance();
+    await Promise.all([onRefreshBalance(), onRefreshClassicBalance()]);
+    setRefreshing(false);
     setRefreshingClassic(false);
+    setRefreshed(true);
     setRefreshedClassic(true);
-    setTimeout(() => setRefreshedClassic(false), 2000);
+    setTimeout(() => {
+      setRefreshed(false);
+      setRefreshedClassic(false);
+    }, 2000);
   };
 
   const handleFund = async (e) => {
@@ -126,11 +123,12 @@ function WalletDashboard({
       setAmount('');
       setShowSend(false);
 
-      // Refresh balance every second for 5 seconds after sending
+      // Refresh both balances every second for 5 seconds after sending
       let count = 0;
       const intervalId = setInterval(() => {
         count++;
         onRefreshBalance();
+        onRefreshClassicBalance();
         if (count >= 5) {
           clearInterval(intervalId);
         }
@@ -151,10 +149,11 @@ function WalletDashboard({
       setClassicAmount('');
       setShowClassicSend(false);
 
-      // Refresh balance every second for 5 seconds after sending
+      // Refresh both balances every second for 5 seconds after sending
       let count = 0;
       const intervalId = setInterval(() => {
         count++;
+        onRefreshBalance();
         onRefreshClassicBalance();
         if (count >= 5) {
           clearInterval(intervalId);
@@ -197,7 +196,16 @@ function WalletDashboard({
       <p className="disclaimer">THIS IS AN EXPERIMENTAL STELLAR SMART WALLET. DON'T BE STUPID.</p>
 
       <p>
-        {config.stellar.network}
+        {config.stellar.network}{' '}
+        (<a href="#" onClick={handleRefresh}>
+          {refreshing ? 'refreshing' : refreshed ? 'refreshed!' : 'refresh'}
+        </a>
+        {parseFloat(balance) === 0 && parseFloat(classicBalance) === 0 && config.isTestnet && (
+          <>{', '}
+          <a href="#" onClick={handleFund}>
+            {funding ? 'funding' : funded ? 'funded!' : 'fund'}
+          </a></>
+        )})
       </p>
 
       <hr />
@@ -213,10 +221,7 @@ function WalletDashboard({
       </p>
 
       <p>
-        {classicBalance} XLM{' '}
-        (<a href="#" onClick={handleRefreshClassic}>
-          {refreshingClassic ? 'refreshing' : refreshedClassic ? 'refreshed!' : 'refresh'}
-        </a>)
+        {classicBalance} XLM
       </p>
 
       <p>
@@ -238,15 +243,7 @@ function WalletDashboard({
       </p>
 
       <p>
-        {balance} XLM{' '}
-        (<a href="#" onClick={handleRefresh}>
-          {refreshing ? 'refreshing' : refreshed ? 'refreshed!' : 'refresh'}
-        </a>{parseFloat(balance) === 0 && config.isTestnet && (
-          <>{', '}
-          <a href="#" onClick={handleFund}>
-            {funding ? 'funding' : funded ? 'funded!' : 'fund'}
-          </a></>
-        )})
+        {balance} XLM
       </p>
 
       <p>

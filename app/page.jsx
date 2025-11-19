@@ -13,6 +13,7 @@ import {
   fundTestnetAccount,
   signMessage,
   getBalance,
+  getContractBalance,
   buildSACTransfer
 } from '@/utils/stellar';
 import {
@@ -63,7 +64,11 @@ export default function Home() {
           if (wallet) {
             setWalletAddress(wallet.address);
             setUserEmail(email);
-            await updateBalance(email);
+
+            // Fetch contract balance using Soroban RPC
+            const contractBalance = await getContractBalance(wallet.address);
+            setBalance(contractBalance);
+
             setHasWallet(true);
           }
         }
@@ -90,28 +95,19 @@ export default function Home() {
     }
   };
 
-  const updateBalance = async (emailOverride = null) => {
+  const updateBalance = async () => {
     try {
-      const email = emailOverride || userEmail;
-      if (!email) {
-        console.warn('No email available for balance update');
+      if (!walletAddress) {
+        console.warn('No wallet address available for balance update');
         return;
       }
 
-      const locator = `email:${email}:stellar`;
-      const balanceData = await getWalletBalance(locator);
-
-      // Extract XLM balance from Crossmint response
-      // balanceData is an array of token balances
-      const xlmBalance = balanceData?.find(
-        b => b.symbol === 'xlm' || b.symbol === 'XLM'
-      );
-
-      const newBalance = xlmBalance ? xlmBalance.amount : '0';
-      setBalance(newBalance);
-      console.log('Balance updated:', newBalance);
+      // Use Soroban RPC to get contract balance
+      const contractBalance = await getContractBalance(walletAddress);
+      setBalance(contractBalance);
+      console.log('Contract balance updated:', contractBalance);
     } catch (error) {
-      console.error('Error fetching balance:', error);
+      console.error('Error fetching contract balance:', error);
       alert(`Failed to refresh balance: ${error.message}`);
     }
   };
@@ -135,7 +131,10 @@ export default function Home() {
       const wallet = await createWallet(pubKey, email);
       setWalletAddress(wallet.address);
 
-      await updateBalance(email);
+      // Fetch contract balance using Soroban RPC
+      const contractBalance = await getContractBalance(wallet.address);
+      setBalance(contractBalance);
+
       await updateClassicBalance();
       setHasWallet(true);
     } catch (error) {

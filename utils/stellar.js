@@ -189,25 +189,133 @@ export async function fundTestnetAccount(address, signerPublicKey = null) {
 }
 
 /**
- * Get account balance from Stellar network
+ * Get account balance from Stellar network using Soroban RPC
  * @param {string} publicKey - The public key of the account
  * @returns {Promise<string>} The XLM balance
  */
 export async function getBalance(publicKey) {
-  const server = new StellarSdk.Horizon.Server(config.stellar.horizonUrl);
-
   try {
-    const account = await server.loadAccount(publicKey);
-    const xlmBalance = account.balances.find(
-      balance => balance.asset_type === 'native'
-    );
-    return xlmBalance ? xlmBalance.balance : '0';
-  } catch (error) {
-    if (error.response && error.response.status === 404) {
-      // Account doesn't exist yet
+    // Create RPC server
+    const rpcServer = new StellarSdk.rpc.Server(config.stellar.sorobanRpcUrl);
+
+    // Get the native XLM SAC contract ID
+    const xlmAsset = StellarSdk.Asset.native();
+    const xlmContractId = xlmAsset.contractId(config.networkPassphrase);
+
+    // Create contract instance
+    const contract = new StellarSdk.Contract(xlmContractId);
+
+    // Create address for the account we're checking balance of
+    const address = new StellarSdk.Address(publicKey);
+
+    // Build a transaction to simulate the balance() call
+    // For read-only calls, we can use a placeholder account
+    const placeholderKeypair = StellarSdk.Keypair.random();
+    const placeholderAccount = new StellarSdk.Account(placeholderKeypair.publicKey(), '0');
+
+    // Build transaction with balance() invocation
+    const transaction = new StellarSdk.TransactionBuilder(placeholderAccount, {
+      fee: StellarSdk.BASE_FEE,
+      networkPassphrase: config.networkPassphrase
+    })
+      .addOperation(
+        contract.call('balance', address.toScVal())
+      )
+      .setTimeout(30)
+      .build();
+
+    // Simulate the transaction to get the result
+    const simulationResponse = await rpcServer.simulateTransaction(transaction);
+
+    if (StellarSdk.rpc.Api.isSimulationSuccess(simulationResponse)) {
+      // Extract the balance from the result
+      const resultValue = simulationResponse.result.retval;
+
+      // The balance is returned as i128 in stroops
+      const balanceStroops = StellarSdk.scValToNative(resultValue);
+
+      // Convert stroops to XLM (1 XLM = 10,000,000 stroops)
+      const balanceXLM = Number(balanceStroops) / 10000000;
+
+      // Return "0" for zero balance, otherwise format with up to 7 decimals
+      if (balanceXLM === 0) {
+        return '0';
+      }
+
+      return balanceXLM.toFixed(7).replace(/\.?0+$/, '');
+    } else {
+      // Account might not exist or have no balance
       return '0';
     }
-    throw error;
+  } catch (error) {
+    console.error('Error fetching account balance:', error);
+    return '0';
+  }
+}
+
+/**
+ * Get contract XLM balance using Soroban RPC
+ * @param {string} contractAddress - The contract address (C...)
+ * @returns {Promise<string>} The XLM balance
+ */
+export async function getContractBalance(contractAddress) {
+  try {
+    // Create RPC server
+    const rpcServer = new StellarSdk.rpc.Server(config.stellar.sorobanRpcUrl);
+
+    // Get the native XLM SAC contract ID
+    const xlmAsset = StellarSdk.Asset.native();
+    const xlmContractId = xlmAsset.contractId(config.networkPassphrase);
+
+    // Create contract instance
+    const contract = new StellarSdk.Contract(xlmContractId);
+
+    // Create address for the contract we're checking balance of
+    const address = new StellarSdk.Address(contractAddress);
+
+    // Build a transaction to simulate the balance() call
+    // We need a source account for simulation, we can use any valid account
+    // For read-only calls, we can use a placeholder account
+    const placeholderKeypair = StellarSdk.Keypair.random();
+    const placeholderAccount = new StellarSdk.Account(placeholderKeypair.publicKey(), '0');
+
+    // Build transaction with balance() invocation
+    const transaction = new StellarSdk.TransactionBuilder(placeholderAccount, {
+      fee: StellarSdk.BASE_FEE,
+      networkPassphrase: config.networkPassphrase
+    })
+      .addOperation(
+        contract.call('balance', address.toScVal())
+      )
+      .setTimeout(30)
+      .build();
+
+    // Simulate the transaction to get the result
+    const simulationResponse = await rpcServer.simulateTransaction(transaction);
+
+    if (StellarSdk.rpc.Api.isSimulationSuccess(simulationResponse)) {
+      // Extract the balance from the result
+      const resultValue = simulationResponse.result.retval;
+
+      // The balance is returned as i128 in stroops
+      const balanceStroops = StellarSdk.scValToNative(resultValue);
+
+      // Convert stroops to XLM (1 XLM = 10,000,000 stroops)
+      const balanceXLM = Number(balanceStroops) / 10000000;
+
+      // Return "0" for zero balance, otherwise format with up to 7 decimals
+      if (balanceXLM === 0) {
+        return '0';
+      }
+
+      return balanceXLM.toFixed(7).replace(/\.?0+$/, '');
+    } else {
+      // Contract might not exist or have no balance
+      return '0';
+    }
+  } catch (error) {
+    console.error('Error fetching contract balance:', error);
+    return '0';
   }
 }
 
