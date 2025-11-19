@@ -11,7 +11,9 @@ import {
   submitTransaction,
   clearKeypair,
   fundTestnetAccount,
-  signMessage
+  signMessage,
+  getBalance,
+  buildSACTransfer
 } from '@/utils/stellar';
 import {
   createWallet,
@@ -29,6 +31,7 @@ export default function Home() {
   const [publicKey, setPublicKey] = useState(null);
   const [walletAddress, setWalletAddress] = useState(null);
   const [balance, setBalance] = useState('0');
+  const [classicBalance, setClassicBalance] = useState('0');
   const [userEmail, setUserEmail] = useState(null);
   const [statusMessage, setStatusMessage] = useState(null); // { type: 'success' | 'error', text: string }
 
@@ -43,6 +46,10 @@ export default function Home() {
       if (hasKeypair()) {
         const pubKey = getPublicKey();
         setPublicKey(pubKey);
+
+        // Fetch classic balance directly with pubKey
+        const classicBal = await getBalance(pubKey);
+        setClassicBalance(classicBal);
 
         // Check if user email is stored
         const email = localStorage.getItem('user_email');
@@ -65,6 +72,21 @@ export default function Home() {
       console.error('Error initializing wallet:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const updateClassicBalance = async () => {
+    try {
+      if (!publicKey) {
+        console.warn('No public key available for classic balance update');
+        return;
+      }
+
+      const balance = await getBalance(publicKey);
+      setClassicBalance(balance);
+      console.log('Classic balance updated:', balance);
+    } catch (error) {
+      console.error('Error fetching classic balance:', error);
     }
   };
 
@@ -114,6 +136,7 @@ export default function Home() {
       setWalletAddress(wallet.address);
 
       await updateBalance(email);
+      await updateClassicBalance();
       setHasWallet(true);
     } catch (error) {
       console.error('Error creating wallet:', error);
@@ -190,13 +213,49 @@ export default function Home() {
     }
   };
 
+  const handleClassicSend = async (destination, amount) => {
+    setLoading(true);
+    setStatusMessage(null);
+    try {
+      // Use buildSACTransfer to send XLM from classic account
+      await buildSACTransfer(destination, amount);
+
+      console.log('Classic account transfer successful');
+
+      // Update balances after successful transaction
+      await updateClassicBalance();
+      await updateBalance();
+
+      // Show success message
+      setStatusMessage({ type: 'success', text: `Successfully sent ${amount} XLM!` });
+
+      // Auto-close after 2 seconds
+      setTimeout(() => {
+        setLoading(false);
+        setStatusMessage(null);
+      }, 2000);
+    } catch (error) {
+      console.error('Error sending XLM from classic account:', error);
+      setStatusMessage({ type: 'error', text: `Failed to send XLM: ${error.message}` });
+
+      // Auto-close error after 3 seconds
+      setTimeout(() => {
+        setLoading(false);
+        setStatusMessage(null);
+      }, 3000);
+
+      throw error;
+    }
+  };
+
   const handleFundAccount = async () => {
     try {
       // Fund the wallet - for smart wallets, this funds the signer and transfers to the wallet
       await fundTestnetAccount(walletAddress, publicKey);
 
-      // Update balance after funding
+      // Update balances after funding
       await updateBalance();
+      await updateClassicBalance();
     } catch (error) {
       console.error('Error funding account:', error);
       throw error;
@@ -233,8 +292,11 @@ export default function Home() {
         publicKey={publicKey}
         walletAddress={walletAddress}
         balance={balance}
+        classicBalance={classicBalance}
         onSendXLM={handleSendXLM}
+        onClassicSend={handleClassicSend}
         onRefreshBalance={updateBalance}
+        onRefreshClassicBalance={updateClassicBalance}
         onFundAccount={handleFundAccount}
         onCreateWallet={handleCreateWallet}
         onReset={handleReset}

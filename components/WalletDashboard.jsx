@@ -9,8 +9,11 @@ function WalletDashboard({
   publicKey,
   walletAddress,
   balance,
+  classicBalance,
   onSendXLM,
+  onClassicSend,
   onRefreshBalance,
+  onRefreshClassicBalance,
   onReset,
   onFundAccount,
   onCreateWallet,
@@ -18,14 +21,21 @@ function WalletDashboard({
   creatingWallet
 }) {
   const [showSend, setShowSend] = useState(false);
+  const [showClassicSend, setShowClassicSend] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
   const [showQR, setShowQR] = useState(false);
+  const [showClassicQR, setShowClassicQR] = useState(false);
   const [destination, setDestination] = useState('');
   const [amount, setAmount] = useState('');
+  const [classicDestination, setClassicDestination] = useState('');
+  const [classicAmount, setClassicAmount] = useState('');
   const [sending, setSending] = useState(false);
+  const [classicSending, setClassicSending] = useState(false);
   const [copied, setCopied] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [refreshed, setRefreshed] = useState(false);
+  const [refreshingClassic, setRefreshingClassic] = useState(false);
+  const [refreshedClassic, setRefreshedClassic] = useState(false);
   const [funding, setFunding] = useState(false);
   const [funded, setFunded] = useState(false);
   const [theme, setTheme] = useState(() => {
@@ -41,8 +51,10 @@ function WalletDashboard({
   // Reset dialog states when walletAddress changes (new wallet created or deleted)
   useEffect(() => {
     setShowSend(false);
+    setShowClassicSend(false);
     setShowDelete(false);
     setShowQR(false);
+    setShowClassicQR(false);
     setDestination('');
     setAmount('');
     setSending(false);
@@ -70,6 +82,15 @@ function WalletDashboard({
     setRefreshing(false);
     setRefreshed(true);
     setTimeout(() => setRefreshed(false), 2000);
+  };
+
+  const handleRefreshClassic = async (e) => {
+    e.preventDefault();
+    setRefreshingClassic(true);
+    await onRefreshClassicBalance();
+    setRefreshingClassic(false);
+    setRefreshedClassic(true);
+    setTimeout(() => setRefreshedClassic(false), 2000);
   };
 
   const handleFund = async (e) => {
@@ -121,6 +142,31 @@ function WalletDashboard({
     }
   };
 
+  const handleClassicSend = async (e) => {
+    e.preventDefault();
+    setClassicSending(true);
+    try {
+      await onClassicSend(classicDestination, classicAmount);
+      setClassicDestination('');
+      setClassicAmount('');
+      setShowClassicSend(false);
+
+      // Refresh balance every second for 5 seconds after sending
+      let count = 0;
+      const intervalId = setInterval(() => {
+        count++;
+        onRefreshClassicBalance();
+        if (count >= 5) {
+          clearInterval(intervalId);
+        }
+      }, 1000);
+    } catch (error) {
+      // Error already handled in parent
+    } finally {
+      setClassicSending(false);
+    }
+  };
+
   const copyToClipboard = (text, label) => {
     navigator.clipboard.writeText(text);
     setCopied(label);
@@ -150,7 +196,56 @@ function WalletDashboard({
       <h1>LUMENITOS</h1>
       <p className="disclaimer">THIS IS AN EXPERIMENTAL STELLAR SMART WALLET. DON'T BE STUPID.</p>
 
+      <p>
+        network: {config.stellar.network} (<a href="#" onClick={(e) => { e.preventDefault(); }}>
+          {config.stellar.network === 'testnet' ? 'mainnet' : 'testnet'}
+        </a>)
+      </p>
+
       <hr />
+
+      <p>
+        <strong>classic account</strong>
+      </p>
+
+      <p>
+        address: {shortenAddress(publicKey)}{' '}
+        (<a href="#" onClick={(e) => { e.preventDefault(); copyToClipboard(publicKey, 'classic'); }}>
+          {copied === 'classic' ? 'copied!' : 'copy'}
+        </a>,{' '}
+        <a href={`${config.stellar.explorerUrl}/account/${publicKey}`} target="_blank" rel="noopener noreferrer">
+          explore
+        </a>)
+      </p>
+
+      <p>
+        balance: {classicBalance} XLM{' '}
+        (<a href="#" onClick={handleRefreshClassic}>
+          {refreshingClassic ? 'refreshing' : refreshedClassic ? 'refreshed!' : 'refresh'}
+        </a>)
+      </p>
+
+      <p>
+        <a href="#" onClick={(e) => { e.preventDefault(); setShowClassicQR(true); }}>receive</a>
+        {' | '}
+        <a href="#" onClick={(e) => { e.preventDefault(); setShowClassicSend(true); }}>send</a>
+      </p>
+
+      <hr />
+
+      <p>
+        <strong>contract account</strong>
+      </p>
+
+      <p>
+        address: {shortenAddress(walletAddress)}{' '}
+        (<a href="#" onClick={(e) => { e.preventDefault(); copyToClipboard(walletAddress, 'contract'); }}>
+          {copied === 'contract' ? 'copied!' : 'copy'}
+        </a>,{' '}
+        <a href={`${config.stellar.explorerUrl}/contract/${walletAddress}`} target="_blank" rel="noopener noreferrer">
+          explore
+        </a>)
+      </p>
 
       <p>
         balance: {balance} XLM{' '}
@@ -165,37 +260,12 @@ function WalletDashboard({
       </p>
 
       <p>
-        wallet: {shortenAddress(walletAddress)}{' '}
-        (<a href="#" onClick={(e) => { e.preventDefault(); copyToClipboard(walletAddress, 'wallet'); }}>
-          {copied === 'wallet' ? 'copied!' : 'copy'}
-        </a>,{' '}
-        <a href={`${config.stellar.explorerUrl}/contract/${walletAddress}`} target="_blank" rel="noopener noreferrer">
-          explore
-        </a>)
-      </p>
-
-      <p>
-        signer: {shortenAddress(publicKey)}{' '}
-        (<a href="#" onClick={(e) => { e.preventDefault(); copyToClipboard(publicKey, 'signer'); }}>
-          {copied === 'signer' ? 'copied!' : 'copy'}
-        </a>)
-      </p>
-
-      <p>
-        network: {config.stellar.network} (<a href="#" onClick={(e) => { e.preventDefault(); }}>
-          {config.stellar.network === 'testnet' ? 'mainnet' : 'testnet'}
-        </a>)
+        <a href="#" onClick={(e) => { e.preventDefault(); setShowQR(true); }}>receive</a>
+        {' | '}
+        <a href="#" onClick={(e) => { e.preventDefault(); setShowSend(true); }}>send</a>
       </p>
 
       <hr />
-
-      <p>
-        <a href="#" onClick={(e) => { e.preventDefault(); setShowQR(true); }}>receive</a>
-      </p>
-
-      <p>
-        <a href="#" onClick={(e) => { e.preventDefault(); setShowSend(true); }}>send</a>
-      </p>
 
       <p>
         <a href="#" onClick={(e) => { e.preventDefault(); setShowDelete(true); }}>delete</a>
@@ -207,10 +277,58 @@ function WalletDashboard({
         </a>
       </div>
 
+      {showClassicSend && (
+        <div className="modal-overlay" onClick={() => !classicSending && setShowClassicSend(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>send xlm (classic account)</h3>
+
+            <form onSubmit={handleClassicSend}>
+              <div className="form-group">
+                <label htmlFor="classicDestination">destination address</label>
+                <input
+                  type="text"
+                  id="classicDestination"
+                  value={classicDestination}
+                  onChange={(e) => setClassicDestination(e.target.value)}
+                  placeholder="GXXX... or CXXX..."
+                  required
+                  disabled={classicSending}
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="classicAmount">amount (xlm)</label>
+                <input
+                  type="number"
+                  id="classicAmount"
+                  value={classicAmount}
+                  onChange={(e) => setClassicAmount(e.target.value)}
+                  placeholder="0.00"
+                  step="0.0000001"
+                  min="0.0000001"
+                  max={classicBalance}
+                  required
+                  disabled={classicSending}
+                />
+                <small>available: {classicBalance} xlm</small>
+              </div>
+
+              <p>
+                <a href="#" onClick={(e) => { e.preventDefault(); setShowClassicSend(false); }}>cancel</a>
+                {' | '}
+                <a href="#" onClick={(e) => { e.preventDefault(); handleClassicSend(e); }}>
+                  {classicSending ? 'sending...' : 'send'}
+                </a>
+              </p>
+            </form>
+          </div>
+        </div>
+      )}
+
       {showSend && (
         <div className="modal-overlay" onClick={() => !sending && setShowSend(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>send xlm</h3>
+            <h3>send xlm (contract account)</h3>
 
             <form onSubmit={handleSend}>
               <div className="form-group">
@@ -282,6 +400,22 @@ function WalletDashboard({
 
             <p>
               <a href="#" onClick={(e) => { e.preventDefault(); setShowQR(false); }}>close</a>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {showClassicQR && (
+        <div className="modal-overlay" onClick={() => setShowClassicQR(false)}>
+          <div className="modal qr-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="qr-code-container">
+              <QRCodeSVG value={publicKey} size={256} />
+            </div>
+
+            <p className="qr-address">{publicKey}</p>
+
+            <p>
+              <a href="#" onClick={(e) => { e.preventDefault(); setShowClassicQR(false); }}>close</a>
             </p>
           </div>
         </div>
