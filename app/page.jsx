@@ -139,8 +139,8 @@ export default function Home() {
       await updateClassicBalance();
       setHasWallet(true);
     } catch (error) {
-      console.error('Error creating wallet:', error);
-      alert(`Failed to create wallet: ${error.message}`);
+      console.error('Error generating wallet:', error);
+      alert(`Failed to generate wallet: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -269,6 +269,7 @@ export default function Home() {
     setPublicKey(null);
     setWalletAddress(null);
     setBalance('0');
+    setClassicBalance('0');
     setUserEmail(null);
   };
 

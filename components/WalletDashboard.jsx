@@ -71,8 +71,8 @@ function WalletDashboard({
   };
 
   const shortenAddress = (address) => {
-    if (!address || address.length < 8) return address;
-    return `${address.substring(0, 4)}....${address.substring(address.length - 4)}`;
+    if (!address || address.length < 12) return address;
+    return `${address.substring(0, 6)}....${address.substring(address.length - 6)}`;
   };
 
   const handleRefresh = async (e) => {
@@ -173,7 +173,7 @@ function WalletDashboard({
     setTimeout(() => setCopied(''), 2000);
   };
 
-  // Show create wallet link if no wallet exists
+  // Show generate wallet link if no wallet exists
   if (!walletAddress) {
     return (
       <div className="wallet-dashboard">
@@ -184,7 +184,7 @@ function WalletDashboard({
 
         <p>
           <a href="#" onClick={(e) => { e.preventDefault(); onCreateWallet(); }}>
-            {creatingWallet ? 'loading wallet!' : 'create wallet'}
+            {creatingWallet ? 'loading...' : 'generate wallet'}
           </a>
         </p>
       </div>
@@ -197,19 +197,13 @@ function WalletDashboard({
       <p className="disclaimer">THIS IS AN EXPERIMENTAL STELLAR SMART WALLET. DON'T BE STUPID.</p>
 
       <p>
-        network: {config.stellar.network} (<a href="#" onClick={(e) => { e.preventDefault(); }}>
-          {config.stellar.network === 'testnet' ? 'mainnet' : 'testnet'}
-        </a>)
+        {config.stellar.network}
       </p>
 
       <hr />
 
       <p>
-        <strong>classic account</strong>
-      </p>
-
-      <p>
-        address: {shortenAddress(publicKey)}{' '}
+      {shortenAddress(publicKey)}{' '}
         (<a href="#" onClick={(e) => { e.preventDefault(); copyToClipboard(publicKey, 'classic'); }}>
           {copied === 'classic' ? 'copied!' : 'copy'}
         </a>,{' '}
@@ -219,7 +213,7 @@ function WalletDashboard({
       </p>
 
       <p>
-        balance: {classicBalance} XLM{' '}
+        {classicBalance} XLM{' '}
         (<a href="#" onClick={handleRefreshClassic}>
           {refreshingClassic ? 'refreshing' : refreshedClassic ? 'refreshed!' : 'refresh'}
         </a>)
@@ -234,11 +228,7 @@ function WalletDashboard({
       <hr />
 
       <p>
-        <strong>contract account</strong>
-      </p>
-
-      <p>
-        address: {shortenAddress(walletAddress)}{' '}
+      {shortenAddress(walletAddress)}{' '}
         (<a href="#" onClick={(e) => { e.preventDefault(); copyToClipboard(walletAddress, 'contract'); }}>
           {copied === 'contract' ? 'copied!' : 'copy'}
         </a>,{' '}
@@ -248,7 +238,7 @@ function WalletDashboard({
       </p>
 
       <p>
-        balance: {balance} XLM{' '}
+        {balance} XLM{' '}
         (<a href="#" onClick={handleRefresh}>
           {refreshing ? 'refreshing' : refreshed ? 'refreshed!' : 'refresh'}
         </a>{parseFloat(balance) === 0 && config.isTestnet && (
@@ -268,7 +258,7 @@ function WalletDashboard({
       <hr />
 
       <p>
-        <a href="#" onClick={(e) => { e.preventDefault(); setShowDelete(true); }}>delete</a>
+        <a href="#" onClick={(e) => { e.preventDefault(); setShowDelete(true); }}>forget</a>
       </p>
 
       <div className="theme-toggle">
@@ -376,14 +366,14 @@ function WalletDashboard({
       {showDelete && (
         <div className="modal-overlay" onClick={() => setShowDelete(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>delete wallet</h3>
+            <h3>forget wallet</h3>
 
-            <p>are you sure you want to delete your wallet? this will permanently delete your keys!</p>
+            <p>are you sure you want to forget your wallet? this will permanently delete your keys!</p>
 
             <p>
               <a href="#" onClick={(e) => { e.preventDefault(); setShowDelete(false); }}>cancel</a>
               {' | '}
-              <a href="#" onClick={(e) => { e.preventDefault(); onReset(); }}>delete</a>
+              <a href="#" onClick={(e) => { e.preventDefault(); onReset(); }}>forget</a>
             </p>
           </div>
         </div>
