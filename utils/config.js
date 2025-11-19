@@ -19,7 +19,6 @@ const publicConfig = {
   },
   stellar: {
     network: process.env.NEXT_PUBLIC_STELLAR_NETWORK || 'testnet',
-    horizonUrl: process.env.NEXT_PUBLIC_STELLAR_HORIZON_URL || 'https://horizon-testnet.stellar.org',
     sorobanRpcUrl: process.env.NEXT_PUBLIC_STELLAR_SOROBAN_RPC_URL || 'https://soroban-testnet.stellar.org',
     friendbotUrl: process.env.NEXT_PUBLIC_STELLAR_FRIENDBOT_URL || 'https://friendbot.stellar.org',
     explorerUrl: process.env.NEXT_PUBLIC_STELLAR_EXPLORER_URL || 'https://stellar.expert/explorer/testnet',

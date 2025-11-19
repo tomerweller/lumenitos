@@ -61,6 +61,17 @@ export function hasKeypair() {
 }
 
 /**
+ * Get account using Soroban RPC getAccount
+ * @param {StellarSdk.rpc.Server} rpcServer - The RPC server instance
+ * @param {string} publicKey - The public key of the account
+ * @returns {Promise<StellarSdk.Account>} The account object
+ */
+async function getAccount(rpcServer, publicKey) {
+  const account = await rpcServer.getAccount(publicKey);
+  return account;
+}
+
+/**
  * Transfer XLM to a smart contract address using the Stellar Asset Contract (SAC)
  * @param {string} destination - The destination contract address
  * @param {string} amount - Amount of XLM to transfer (in XLM, not stroops)
@@ -72,11 +83,8 @@ export async function buildSACTransfer(destination, amount) {
     throw new Error('No keypair found in storage');
   }
 
-  // Create RPC server - in SDK v14+, use rpc namespace
+  // Create RPC server
   const rpcServer = new StellarSdk.rpc.Server(config.stellar.sorobanRpcUrl);
-
-  // Use Horizon for loading account
-  const horizonServer = new StellarSdk.Horizon.Server(config.stellar.horizonUrl);
 
   // Get the native XLM SAC contract ID
   const xlmAsset = StellarSdk.Asset.native();
@@ -91,8 +99,8 @@ export async function buildSACTransfer(destination, amount) {
 
   const contract = new StellarSdk.Contract(xlmContractId);
 
-  // Load source account
-  const sourceAccount = await horizonServer.loadAccount(keypair.publicKey());
+  // Get account using RPC
+  const sourceAccount = await getAccount(rpcServer, keypair.publicKey());
 
   // Build the transaction with contract invocation
   let transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
@@ -319,56 +327,6 @@ export async function getContractBalance(contractAddress) {
   }
 }
 
-/**
- * Build and sign a payment transaction
- * @param {string} destination - Destination public key
- * @param {string} amount - Amount of XLM to send
- * @returns {Promise<string>} The signed transaction XDR
- */
-export async function buildPaymentTransaction(destination, amount) {
-  const keypair = getStoredKeypair();
-  if (!keypair) {
-    throw new Error('No keypair found in storage');
-  }
-
-  const server = new StellarSdk.Horizon.Server(config.stellar.horizonUrl);
-
-  const sourceAccount = await server.loadAccount(keypair.publicKey());
-
-  const transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
-    fee: StellarSdk.BASE_FEE,
-    networkPassphrase: config.networkPassphrase
-  })
-    .addOperation(
-      StellarSdk.Operation.payment({
-        destination: destination,
-        asset: StellarSdk.Asset.native(),
-        amount: amount.toString()
-      })
-    )
-    .setTimeout(180)
-    .build();
-
-  transaction.sign(keypair);
-
-  return transaction.toXDR();
-}
-
-/**
- * Submit a signed transaction to the network
- * @param {string} transactionXdr - The signed transaction XDR
- * @returns {Promise<object>} The transaction result
- */
-export async function submitTransaction(transactionXdr) {
-  const server = new StellarSdk.Horizon.Server(config.stellar.horizonUrl);
-
-  const transaction = StellarSdk.TransactionBuilder.fromXDR(
-    transactionXdr,
-    config.networkPassphrase
-  );
-
-  return await server.submitTransaction(transaction);
-}
 
 /**
  * Sign a message with the stored keypair
