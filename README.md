@@ -2,6 +2,10 @@
 
 A minimalist Stellar smart wallet built with Next.js and [Crossmint](https://www.crossmint.com/).
 
+**Live Deployments:**
+- Mainnet: https://lumenitos.vercel.app/
+- Testnet: https://lumenitos-testnet.vercel.app/
+
 ## Overview
 
 Lumenitos is an experimental Stellar smart wallet that combines local key management with Crossmint's smart wallet infrastructure. It provides a simple, text-based interface for creating and managing Stellar wallets on testnet.
