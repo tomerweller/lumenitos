@@ -124,9 +124,10 @@ Click the "fund" link to use Stellar's Friendbot to add testnet XLM to your wall
 lumenitos/
 ├── app/
 │   ├── page.jsx              # Main app component
-│   ├── layout.js             # Root layout
-│   ├── App.css               # App-specific styles
+│   ├── layout.js             # Root layout with PWA support
+│   ├── ServiceWorkerRegistration.jsx  # Service worker registration
 │   ├── globals.css           # Global styles
+│   ├── manifest.json/route.js  # Dynamic PWA manifest
 │   └── api/
 │       └── crossmint/        # Serverless API routes
 │           ├── wallets/route.js
@@ -135,20 +136,26 @@ lumenitos/
 │           └── approvals/route.js
 ├── components/
 │   ├── WalletSetup.jsx       # Initial setup component
-│   └── WalletDashboard.jsx   # Main wallet interface
+│   ├── WalletDashboard.jsx   # Main wallet interface
+│   └── WalletDashboard.css   # Dashboard styles
 ├── utils/
 │   ├── stellar.js            # Stellar SDK utilities
-│   └── crossmint.js          # Crossmint API client
+│   ├── crossmint.js          # Crossmint API client
+│   └── config.js             # Configuration management
 └── public/
-    └── manifest.json         # PWA manifest
+    ├── sw.js                 # Service worker
+    ├── icon-192.png          # PWA icon (192x192)
+    └── icon-512.png          # PWA icon (512x512)
 ```
 
 ## Technology Stack
 
-- **Next.js 16** - React framework with App Router
+- **Next.js 15** - React framework with App Router
 - **Stellar SDK** - Stellar blockchain integration
+- **Soroban RPC** - Direct Stellar RPC for balance queries and transactions
 - **Crossmint API** - Smart wallet infrastructure
 - **QRCode.react** - QR code generation
+- **@yudiel/react-qr-scanner** - QR code scanning
 - **localStorage** - Client-side key storage
 
 ## Security Notes
@@ -165,6 +172,10 @@ lumenitos/
 | Variable | Description | Required |
 |----------|-------------|----------|
 | `CROSSMINT_API_KEY` | Your Crossmint API key | Yes |
+| `NEXT_PUBLIC_STELLAR_NETWORK` | Network to use (`testnet` or `mainnet`) | No (default: `testnet`) |
+| `NEXT_PUBLIC_STELLAR_SOROBAN_RPC_URL` | Soroban RPC endpoint | No (default: testnet RPC) |
+| `NEXT_PUBLIC_STELLAR_FRIENDBOT_URL` | Friendbot URL for testnet funding | No (default: testnet Friendbot) |
+| `NEXT_PUBLIC_STELLAR_EXPLORER_URL` | Block explorer URL | No (default: stellar.expert testnet) |
 
 ## API Routes
 
