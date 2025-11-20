@@ -1,14 +1,17 @@
 import "./globals.css";
 import { ServiceWorkerRegistration } from "./ServiceWorkerRegistration";
 
+const isTestnet = process.env.NEXT_PUBLIC_STELLAR_NETWORK !== 'mainnet';
+const appName = isTestnet ? "Lumenitos (testnet)" : "Lumenitos";
+
 export const metadata = {
-  title: "Lumenitos - Stellar Wallet",
+  title: appName,
   description: "A secure Stellar smart wallet for sending and receiving XLM",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Lumenitos",
+    title: appName,
   },
 };
 
