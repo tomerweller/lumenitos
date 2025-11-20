@@ -104,7 +104,7 @@ export async function buildSACTransfer(destination, amount) {
 
   // Build the transaction with contract invocation
   let transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
-    fee: StellarSdk.BASE_FEE,
+    fee: '10000',
     networkPassphrase: config.networkPassphrase
   })
     .addOperation(
@@ -223,7 +223,7 @@ export async function getBalance(publicKey) {
 
     // Build transaction with balance() invocation
     const transaction = new StellarSdk.TransactionBuilder(placeholderAccount, {
-      fee: StellarSdk.BASE_FEE,
+      fee: '10000',
       networkPassphrase: config.networkPassphrase
     })
       .addOperation(
@@ -289,7 +289,7 @@ export async function getContractBalance(contractAddress) {
 
     // Build transaction with balance() invocation
     const transaction = new StellarSdk.TransactionBuilder(placeholderAccount, {
-      fee: StellarSdk.BASE_FEE,
+      fee: '10000',
       networkPassphrase: config.networkPassphrase
     })
       .addOperation(
