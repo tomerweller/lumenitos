@@ -1,9 +1,15 @@
 import "./globals.css";
+import { ServiceWorkerRegistration } from "./ServiceWorkerRegistration";
 
 export const metadata = {
   title: "Lumenitos - Stellar Wallet",
   description: "A secure Stellar smart wallet for sending and receiving XLM",
   manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Lumenitos",
+  },
 };
 
 export default function RootLayout({ children }) {
@@ -11,10 +17,14 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-        <meta name="theme-color" content="#000000" />
+        <meta name="theme-color" content="#0a0a0a" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
       <body>
         {children}
+        <ServiceWorkerRegistration />
       </body>
     </html>
   );
