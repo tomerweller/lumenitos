@@ -6,7 +6,7 @@ const appName = isTestnet ? "Lumenitos (testnet)" : "Lumenitos";
 
 export const metadata = {
   title: appName,
-  description: "A secure Stellar smart wallet for sending and receiving XLM",
+  description: "An experimental Stellar smart wallet for sending and receiving XLM",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,

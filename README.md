@@ -21,7 +21,7 @@ Both accounts can send and receive XLM independently, with balances fetched dire
 
 - **Dual Account Management**: Manage both classic and contract accounts from one keypair
 - **Smart Wallet Architecture**: Uses Crossmint smart wallets with external wallet signing
-- **Local Key Storage**: Private keys stored securely in browser localStorage
+- **Local Key Storage**: Private keys stored in browser localStorage
 - **Simple UX**: Minimalist text-based interface with dark/light theme toggle
 - **QR Code Support**: Generate QR codes for receiving and scan QR codes for sending
 - **Core Operations**:
@@ -41,7 +41,7 @@ Both accounts can send and receive XLM independently, with balances fetched dire
   - `WalletDashboard` - Main wallet interface
 
 ### Backend (Serverless API Routes)
-Secure API routes that proxy Crossmint API calls and keep your API key server-side:
+API routes that proxy Crossmint API calls and keep your API key server-side:
 
 - `/api/crossmint/wallets` - Create and retrieve wallets
 - `/api/crossmint/balances` - Get wallet balances
@@ -162,9 +162,11 @@ lumenitos/
 
 ## Security Notes
 
-⚠️ **THIS IS AN EXPERIMENTAL TESTNET WALLET**
+⚠️ **THIS IS AN EXPERIMENTAL WALLET - NOT SECURE FOR PRODUCTION USE**
 
+- **This wallet is NOT secure** - it is a proof of concept only
 - Private keys are stored in browser localStorage (not production-ready)
+- No encryption, no secure enclave, no hardware wallet support
 - Only use with testnet XLM
 - Do not use for real funds
 - This is a demonstration of Crossmint smart wallet architecture

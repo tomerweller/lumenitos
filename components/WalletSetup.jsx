@@ -18,7 +18,7 @@ function WalletSetup({ onCreateWallet, loading }) {
           <h2>Create Your Wallet</h2>
           <p className="description">
             Create a new Stellar smart wallet with a single tap.
-            Your keys will be securely stored on this device.
+            Your keys will be stored locally on this device.
           </p>
 
           <button
@@ -32,9 +32,9 @@ function WalletSetup({ onCreateWallet, loading }) {
           <div className="info-box">
             <p className="info-title">Important:</p>
             <ul>
-              <li>Your private keys are stored locally on this device</li>
-              <li>Keep your device secure and backed up</li>
-              <li>This is a testnet wallet for demonstration purposes</li>
+              <li>This is an experimental wallet - not secure for production use</li>
+              <li>Your private keys are stored in browser localStorage (unencrypted)</li>
+              <li>Only use for testing and demonstration purposes</li>
             </ul>
           </div>
         </div>
