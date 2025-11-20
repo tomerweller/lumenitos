@@ -2,9 +2,7 @@
 
 A minimalist Stellar smart wallet built with Next.js and [Crossmint](https://www.crossmint.com/).
 
-**Live Deployments:**
-- Mainnet: https://lumenitos.vercel.app/
-- Testnet: https://lumenitos-testnet.vercel.app/
+**Live Demo:** https://lumenitos-testnet.vercel.app/ (testnet)
 
 ## Overview
 
