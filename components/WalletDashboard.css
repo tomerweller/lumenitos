@@ -145,6 +145,16 @@
   line-height: 1.6;
 }
 
+/* Scanner modal */
+.scanner-modal {
+  padding: 20px;
+}
+
+.scanner-modal > div:first-child {
+  border-radius: 3px;
+  overflow: hidden;
+}
+
 @media (max-width: 640px) {
   .wallet-dashboard {
     padding: 20px 10px;

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
+import { Scanner } from '@yudiel/react-qr-scanner';
 import config from '../utils/config';
 import './WalletDashboard.css';
 
@@ -25,6 +26,8 @@ function WalletDashboard({
   const [showDelete, setShowDelete] = useState(false);
   const [showQR, setShowQR] = useState(false);
   const [showClassicQR, setShowClassicQR] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [showClassicScanner, setShowClassicScanner] = useState(false);
   const [destination, setDestination] = useState('');
   const [amount, setAmount] = useState('');
   const [classicDestination, setClassicDestination] = useState('');
@@ -55,6 +58,8 @@ function WalletDashboard({
     setShowDelete(false);
     setShowQR(false);
     setShowClassicQR(false);
+    setShowScanner(false);
+    setShowClassicScanner(false);
     setDestination('');
     setAmount('');
     setSending(false);
@@ -172,6 +177,20 @@ function WalletDashboard({
     setTimeout(() => setCopied(''), 2000);
   };
 
+  const handleScanResult = (result) => {
+    if (result && result[0]?.rawValue) {
+      setDestination(result[0].rawValue);
+      setShowScanner(false);
+    }
+  };
+
+  const handleClassicScanResult = (result) => {
+    if (result && result[0]?.rawValue) {
+      setClassicDestination(result[0].rawValue);
+      setShowClassicScanner(false);
+    }
+  };
+
   // Show generate wallet link if no wallet exists
   if (!walletAddress) {
     return (
@@ -271,7 +290,9 @@ function WalletDashboard({
 
             <form onSubmit={handleClassicSend}>
               <div className="form-group">
-                <label htmlFor="classicDestination">destination address</label>
+                <label htmlFor="classicDestination">
+                  destination address (<a href="#" onClick={(e) => { e.preventDefault(); setShowClassicScanner(true); }}>qr</a>)
+                </label>
                 <input
                   type="text"
                   id="classicDestination"
@@ -319,7 +340,9 @@ function WalletDashboard({
 
             <form onSubmit={handleSend}>
               <div className="form-group">
-                <label htmlFor="destination">destination address</label>
+                <label htmlFor="destination">
+                  destination address (<a href="#" onClick={(e) => { e.preventDefault(); setShowScanner(true); }}>qr</a>)
+                </label>
                 <input
                   type="text"
                   id="destination"
@@ -403,6 +426,28 @@ function WalletDashboard({
 
             <p>
               <a href="#" onClick={(e) => { e.preventDefault(); setShowClassicQR(false); }}>close</a>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {showScanner && (
+        <div className="modal-overlay" onClick={() => setShowScanner(false)}>
+          <div className="modal scanner-modal" onClick={(e) => e.stopPropagation()}>
+            <Scanner onScan={handleScanResult} sound={false} />
+            <p>
+              <a href="#" onClick={(e) => { e.preventDefault(); setShowScanner(false); }}>cancel</a>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {showClassicScanner && (
+        <div className="modal-overlay" onClick={() => setShowClassicScanner(false)}>
+          <div className="modal scanner-modal" onClick={(e) => e.stopPropagation()}>
+            <Scanner onScan={handleClassicScanResult} sound={false} />
+            <p>
+              <a href="#" onClick={(e) => { e.preventDefault(); setShowClassicScanner(false); }}>cancel</a>
             </p>
           </div>
         </div>
