@@ -6,17 +6,28 @@ A minimalist Stellar smart wallet built with Next.js and [Crossmint](https://www
 
 Lumenitos is an experimental Stellar smart wallet that combines local key management with Crossmint's smart wallet infrastructure. It provides a simple, text-based interface for creating and managing Stellar wallets on testnet.
 
+### Dual Account Architecture
+
+Lumenitos manages two accounts from a single keypair:
+
+- **Classic Account (G...)**: A standard Stellar account that holds the keypair. Supports traditional Stellar operations and can send XLM to both classic and contract addresses.
+- **Contract Account (C...)**: A Crossmint smart wallet contract that uses the classic account as its admin signer. Enables programmable wallet features and smart contract interactions.
+
+Both accounts can send and receive XLM independently, with balances fetched directly from Stellar RPC.
+
 ### Key Features
 
+- **Dual Account Management**: Manage both classic and contract accounts from one keypair
 - **Smart Wallet Architecture**: Uses Crossmint smart wallets with external wallet signing
 - **Local Key Storage**: Private keys stored securely in browser localStorage
 - **Simple UX**: Minimalist text-based interface with dark/light theme toggle
+- **QR Code Support**: Generate QR codes for receiving and scan QR codes for sending
 - **Core Operations**:
-  - Create new Stellar smart wallet
-  - Send and receive XLM
-  - View wallet balance
-  - Generate QR codes for receiving
+  - Generate new Stellar keypair with associated smart wallet
+  - Send and receive XLM on both classic and contract accounts
+  - View balances for both accounts
   - Fund testnet accounts via Friendbot
+  - Progressive Web App (PWA) support for mobile
 
 ## Architecture
 
