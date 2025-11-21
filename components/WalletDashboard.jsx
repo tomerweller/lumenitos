@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { Scanner } from '@yudiel/react-qr-scanner';
+import { MuxedAccount } from '@stellar/stellar-sdk';
 import config from '../utils/config';
 import './WalletDashboard.css';
 
@@ -41,6 +42,7 @@ function WalletDashboard({
   const [refreshedClassic, setRefreshedClassic] = useState(false);
   const [funding, setFunding] = useState(false);
   const [funded, setFunded] = useState(false);
+  const [muxedId, setMuxedId] = useState('');
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('theme');
     return saved || 'dark';
@@ -78,6 +80,21 @@ function WalletDashboard({
   const shortenAddress = (address) => {
     if (!address || address.length < 12) return address;
     return `${address.substring(0, 6)}....${address.substring(address.length - 6)}`;
+  };
+
+  const getClassicReceiveAddress = () => {
+    if (!muxedId || muxedId.trim() === '') {
+      return publicKey;
+    }
+    try {
+      const muxedAccount = new MuxedAccount(
+        { accountId: () => publicKey },
+        muxedId.trim()
+      );
+      return muxedAccount.accountId();
+    } catch (e) {
+      return publicKey;
+    }
   };
 
   const handleRefresh = async (e) => {
@@ -418,13 +435,28 @@ function WalletDashboard({
       {showClassicQR && (
         <div className="modal-overlay" onClick={() => setShowClassicQR(false)}>
           <div className="modal qr-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="qr-code-container">
-              <QRCodeSVG value={publicKey} size={256} />
+            <div className="form-group">
+              <label htmlFor="muxedId">muxed id (optional)</label>
+              <input
+                type="text"
+                id="muxedId"
+                value={muxedId}
+                onChange={(e) => setMuxedId(e.target.value)}
+                placeholder="e.g. 12345"
+              />
             </div>
 
-            <p className="qr-address">{publicKey}</p>
+            <div className="qr-code-container">
+              <QRCodeSVG value={getClassicReceiveAddress()} size={256} />
+            </div>
+
+            <p className="qr-address">{getClassicReceiveAddress()}</p>
 
             <p>
+              <a href="#" onClick={(e) => { e.preventDefault(); copyToClipboard(getClassicReceiveAddress(), 'receive'); }}>
+                {copied === 'receive' ? 'copied!' : 'copy'}
+              </a>
+              {' | '}
               <a href="#" onClick={(e) => { e.preventDefault(); setShowClassicQR(false); }}>close</a>
             </p>
           </div>
