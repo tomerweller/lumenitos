@@ -33,6 +33,8 @@ function WalletDashboard({
   const [amount, setAmount] = useState('');
   const [classicDestination, setClassicDestination] = useState('');
   const [classicAmount, setClassicAmount] = useState('');
+  const [destMuxedId, setDestMuxedId] = useState('');
+  const [classicDestMuxedId, setClassicDestMuxedId] = useState('');
   const [sending, setSending] = useState(false);
   const [classicSending, setClassicSending] = useState(false);
   const [copied, setCopied] = useState('');
@@ -97,6 +99,21 @@ function WalletDashboard({
     }
   };
 
+  const getMuxedDestination = (dest, muxId) => {
+    if (!muxId || muxId.trim() === '' || !dest.startsWith('G')) {
+      return dest;
+    }
+    try {
+      const muxedAccount = new MuxedAccount(
+        { accountId: () => dest },
+        muxId.trim()
+      );
+      return muxedAccount.accountId();
+    } catch (e) {
+      return dest;
+    }
+  };
+
   const handleRefresh = async (e) => {
     e.preventDefault();
     setRefreshing(true);
@@ -140,9 +157,11 @@ function WalletDashboard({
     e.preventDefault();
     setSending(true);
     try {
-      await onSendXLM(destination, amount);
+      const finalDest = getMuxedDestination(destination, destMuxedId);
+      await onSendXLM(finalDest, amount);
       setDestination('');
       setAmount('');
+      setDestMuxedId('');
       setShowSend(false);
 
       // Refresh both balances every second for 5 seconds after sending
@@ -166,9 +185,11 @@ function WalletDashboard({
     e.preventDefault();
     setClassicSending(true);
     try {
-      await onClassicSend(classicDestination, classicAmount);
+      const finalDest = getMuxedDestination(classicDestination, classicDestMuxedId);
+      await onClassicSend(finalDest, classicAmount);
       setClassicDestination('');
       setClassicAmount('');
+      setClassicDestMuxedId('');
       setShowClassicSend(false);
 
       // Refresh both balances every second for 5 seconds after sending
@@ -322,6 +343,18 @@ function WalletDashboard({
               </div>
 
               <div className="form-group">
+                <label htmlFor="classicDestMuxedId">muxed id (optional)</label>
+                <input
+                  type="text"
+                  id="classicDestMuxedId"
+                  value={classicDestMuxedId}
+                  onChange={(e) => setClassicDestMuxedId(e.target.value)}
+                  placeholder="e.g. 12345"
+                  disabled={classicSending || !classicDestination.startsWith('G')}
+                />
+              </div>
+
+              <div className="form-group">
                 <label htmlFor="classicAmount">amount (xlm)</label>
                 <input
                   type="number"
@@ -368,6 +401,18 @@ function WalletDashboard({
                   placeholder="GXXX..."
                   required
                   disabled={sending}
+                />
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="destMuxedId">muxed id (optional)</label>
+                <input
+                  type="text"
+                  id="destMuxedId"
+                  value={destMuxedId}
+                  onChange={(e) => setDestMuxedId(e.target.value)}
+                  placeholder="e.g. 12345"
+                  disabled={sending || !destination.startsWith('G')}
                 />
               </div>
 
