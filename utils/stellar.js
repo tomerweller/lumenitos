@@ -329,6 +329,109 @@ export async function getContractBalance(contractAddress) {
 
 
 /**
+ * Get TTL information for contract ledger entries
+ * @param {string} contractAddress - The contract address (C...)
+ * @returns {Promise<object>} TTL info for contract instance, code, and balance
+ */
+export async function getContractTTLs(contractAddress) {
+  try {
+    const rpcServer = new StellarSdk.rpc.Server(config.stellar.sorobanRpcUrl);
+
+    // Get the native XLM SAC contract ID for balance entry
+    const xlmAsset = StellarSdk.Asset.native();
+    const xlmContractId = xlmAsset.contractId(config.networkPassphrase);
+
+    // Build ledger keys for the entries we want to check
+    const contractId = StellarSdk.StrKey.decodeContract(contractAddress);
+
+    // Contract instance key
+    const instanceKey = StellarSdk.xdr.LedgerKey.contractData(
+      new StellarSdk.xdr.LedgerKeyContractData({
+        contract: StellarSdk.Address.contract(contractId).toScAddress(),
+        key: StellarSdk.xdr.ScVal.scvLedgerKeyContractInstance(),
+        durability: StellarSdk.xdr.ContractDataDurability.persistent()
+      })
+    );
+
+    // XLM balance key (in the SAC contract)
+    const xlmContractIdBytes = StellarSdk.StrKey.decodeContract(xlmContractId);
+    const balanceKey = StellarSdk.xdr.LedgerKey.contractData(
+      new StellarSdk.xdr.LedgerKeyContractData({
+        contract: StellarSdk.Address.contract(xlmContractIdBytes).toScAddress(),
+        key: StellarSdk.xdr.ScVal.scvVec([
+          StellarSdk.xdr.ScVal.scvSymbol('Balance'),
+          StellarSdk.Address.contract(contractId).toScVal()
+        ]),
+        durability: StellarSdk.xdr.ContractDataDurability.persistent()
+      })
+    );
+
+    // Get the ledger entries
+    const response = await rpcServer.getLedgerEntries(instanceKey, balanceKey);
+
+    // Get current ledger from latest ledger info
+    const latestLedger = response.latestLedger;
+
+    const result = {
+      currentLedger: latestLedger,
+      instance: null,
+      code: null,
+      balance: null
+    };
+
+    // Process the entries
+    for (const entry of response.entries || []) {
+      const ledgerEntry = entry.val;
+      const expirationLedger = entry.liveUntilLedgerSeq;
+
+      if (ledgerEntry.switch().name === 'contractData') {
+        const contractData = ledgerEntry.contractData();
+        const key = contractData.key();
+
+        if (key.switch().name === 'scvLedgerKeyContractInstance') {
+          result.instance = expirationLedger;
+
+          // Try to get the WASM hash from the instance to fetch code TTL
+          try {
+            const instanceVal = contractData.val();
+            if (instanceVal.switch().name === 'scvContractInstance') {
+              const instance = instanceVal.instance();
+              const executable = instance.executable();
+              if (executable.switch().name === 'contractExecutableWasm') {
+                const wasmHash = executable.wasmHash();
+
+                // Create code key
+                const codeKey = StellarSdk.xdr.LedgerKey.contractCode(
+                  new StellarSdk.xdr.LedgerKeyContractCode({
+                    hash: wasmHash
+                  })
+                );
+
+                // Fetch code entry separately
+                const codeResponse = await rpcServer.getLedgerEntries(codeKey);
+                if (codeResponse.entries && codeResponse.entries.length > 0) {
+                  result.code = codeResponse.entries[0].liveUntilLedgerSeq;
+                }
+              }
+            }
+          } catch (e) {
+            console.error('Error fetching code TTL:', e);
+          }
+        } else if (key.switch().name === 'scvVec') {
+          // This is likely the balance entry
+          result.balance = expirationLedger;
+        }
+      }
+    }
+
+    return result;
+  } catch (error) {
+    console.error('Error fetching contract TTLs:', error);
+    throw error;
+  }
+}
+
+/**
  * Sign a message with the stored keypair
  * @param {string} message - Base64-encoded message to sign
  * @returns {string} Base64-encoded signature

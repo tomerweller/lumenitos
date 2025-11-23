@@ -5,6 +5,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { MuxedAccount } from '@stellar/stellar-sdk';
 import config from '../utils/config';
+import { getContractTTLs } from '../utils/stellar';
 import './WalletDashboard.css';
 
 function WalletDashboard({
@@ -29,6 +30,9 @@ function WalletDashboard({
   const [showClassicQR, setShowClassicQR] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
   const [showClassicScanner, setShowClassicScanner] = useState(false);
+  const [showTTLs, setShowTTLs] = useState(false);
+  const [ttlData, setTtlData] = useState(null);
+  const [loadingTTLs, setLoadingTTLs] = useState(false);
   const [destination, setDestination] = useState('');
   const [amount, setAmount] = useState('');
   const [classicDestination, setClassicDestination] = useState('');
@@ -64,6 +68,8 @@ function WalletDashboard({
     setShowClassicQR(false);
     setShowScanner(false);
     setShowClassicScanner(false);
+    setShowTTLs(false);
+    setTtlData(null);
     setDestination('');
     setAmount('');
     setSending(false);
@@ -229,6 +235,22 @@ function WalletDashboard({
     }
   };
 
+  const handleShowTTLs = async (e) => {
+    e.preventDefault();
+    setShowTTLs(true);
+    setLoadingTTLs(true);
+    setTtlData(null);
+    try {
+      const data = await getContractTTLs(walletAddress);
+      setTtlData(data);
+    } catch (error) {
+      console.error('Error fetching TTLs:', error);
+      setTtlData({ error: error.message });
+    } finally {
+      setLoadingTTLs(false);
+    }
+  };
+
   // Show generate wallet link if no wallet exists
   if (!walletAddress) {
     return (
@@ -271,9 +293,6 @@ function WalletDashboard({
       {shortenAddress(publicKey)}{' '}
         (<a href="#" onClick={(e) => { e.preventDefault(); copyToClipboard(publicKey, 'classic'); }}>
           {copied === 'classic' ? 'copied!' : 'copy'}
-        </a>,{' '}
-        <a href={`${config.stellar.explorerUrl}/account/${publicKey}`} target="_blank" rel="noopener noreferrer">
-          explore
         </a>)
       </p>
 
@@ -285,6 +304,10 @@ function WalletDashboard({
         <a href="#" onClick={(e) => { e.preventDefault(); setShowClassicQR(true); }}>receive</a>
         {' | '}
         <a href="#" onClick={(e) => { e.preventDefault(); setShowClassicSend(true); }}>send</a>
+        {' | '}
+        <a href={`${config.stellar.explorerUrl}/account/${publicKey}`} target="_blank" rel="noopener noreferrer">
+          explore
+        </a>
       </p>
 
       <hr />
@@ -293,9 +316,6 @@ function WalletDashboard({
       {shortenAddress(walletAddress)}{' '}
         (<a href="#" onClick={(e) => { e.preventDefault(); copyToClipboard(walletAddress, 'contract'); }}>
           {copied === 'contract' ? 'copied!' : 'copy'}
-        </a>,{' '}
-        <a href={`${config.stellar.explorerUrl}/contract/${walletAddress}`} target="_blank" rel="noopener noreferrer">
-          explore
         </a>)
       </p>
 
@@ -307,6 +327,12 @@ function WalletDashboard({
         <a href="#" onClick={(e) => { e.preventDefault(); setShowQR(true); }}>receive</a>
         {' | '}
         <a href="#" onClick={(e) => { e.preventDefault(); setShowSend(true); }}>send</a>
+        {' | '}
+        <a href={`${config.stellar.explorerUrl}/contract/${walletAddress}`} target="_blank" rel="noopener noreferrer">
+          explore
+        </a>
+        {' | '}
+        <a href="#" onClick={handleShowTTLs}>ttls</a>
       </p>
 
       <hr />
@@ -525,6 +551,31 @@ function WalletDashboard({
             <Scanner onScan={handleClassicScanResult} sound={false} />
             <p>
               <a href="#" onClick={(e) => { e.preventDefault(); setShowClassicScanner(false); }}>cancel</a>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {showTTLs && (
+        <div className="modal-overlay" onClick={() => setShowTTLs(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>contract ttls</h3>
+
+            {loadingTTLs ? (
+              <p>loading...</p>
+            ) : ttlData?.error ? (
+              <p>error: {ttlData.error}</p>
+            ) : ttlData ? (
+              <>
+                <p>current ledger: {ttlData.currentLedger}</p>
+                <p>instance: {ttlData.instance ? `${ttlData.instance} (${ttlData.instance - ttlData.currentLedger} remaining)` : 'n/a'}</p>
+                <p>code (wasm): {ttlData.code ? `${ttlData.code} (${ttlData.code - ttlData.currentLedger} remaining)` : 'n/a'}</p>
+                <p>xlm balance: {ttlData.balance ? `${ttlData.balance} (${ttlData.balance - ttlData.currentLedger} remaining)` : 'n/a'}</p>
+              </>
+            ) : null}
+
+            <p>
+              <a href="#" onClick={(e) => { e.preventDefault(); setShowTTLs(false); }}>close</a>
             </p>
           </div>
         </div>
