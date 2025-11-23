@@ -8,8 +8,17 @@
 .wallet-dashboard h1 {
   font-size: 2.5em;
   font-weight: 600;
-  margin-bottom: 0.3em;
+  margin-bottom: 0.1em;
   line-height: 1.3;
+}
+
+.wallet-dashboard .network-label {
+  display: inline-block;
+  background-color: #dc3545;
+  color: white;
+  padding: 0.2em 0.5em;
+  font-size: 0.8em;
+  margin: 0 0 0.5em 0;
 }
 
 .wallet-dashboard p {

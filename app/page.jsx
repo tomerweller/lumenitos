@@ -92,11 +92,8 @@ export default function Home() {
   // Refresh balances when window gains focus
   useEffect(() => {
     const handleFocus = () => {
-      if (publicKey) {
-        updateClassicBalance();
-      }
-      if (walletAddress) {
-        updateBalance();
+      if (publicKey || walletAddress) {
+        refreshBalances();
       }
     };
 
@@ -148,15 +145,16 @@ export default function Home() {
     try {
       if (!publicKey) {
         console.warn('No public key available for classic balance update');
-        return;
+        return false;
       }
 
       const balance = await getBalance(publicKey);
       setClassicBalance(balance);
-      setLastUpdated(Date.now());
       console.log('Classic balance updated:', balance);
+      return true;
     } catch (error) {
       console.error('Error fetching classic balance:', error);
+      return false;
     }
   };
 
@@ -164,18 +162,32 @@ export default function Home() {
     try {
       if (!walletAddress) {
         console.warn('No wallet address available for balance update');
-        return;
+        return false;
       }
 
       // Use Soroban RPC to get contract balance
       const contractBalance = await getContractBalance(walletAddress);
       setBalance(contractBalance);
-      setLastUpdated(Date.now());
       console.log('Contract balance updated:', contractBalance);
+      return true;
     } catch (error) {
       console.error('Error fetching contract balance:', error);
-      alert(`Failed to refresh balance: ${error.message}`);
+      return false;
     }
+  };
+
+  const refreshBalances = async () => {
+    const results = await Promise.all([
+      publicKey ? updateClassicBalance() : Promise.resolve(false),
+      walletAddress ? updateBalance() : Promise.resolve(false)
+    ]);
+
+    // Only update timestamp if at least one refresh succeeded
+    if (results.some(success => success)) {
+      setLastUpdated(Date.now());
+    }
+
+    return results.every(success => success);
   };
 
   const handleCreateWallet = async () => {
@@ -366,8 +378,7 @@ export default function Home() {
         classicBalance={classicBalance}
         onSendXLM={handleSendXLM}
         onClassicSend={handleClassicSend}
-        onRefreshBalance={updateBalance}
-        onRefreshClassicBalance={updateClassicBalance}
+        onRefreshBalances={refreshBalances}
         onFundAccount={handleFundAccount}
         onCreateWallet={handleCreateWallet}
         onReset={handleReset}

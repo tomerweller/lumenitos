@@ -257,7 +257,7 @@ export async function getBalance(publicKey) {
     }
   } catch (error) {
     console.error('Error fetching account balance:', error);
-    return '0';
+    throw error;
   }
 }
 
@@ -323,7 +323,7 @@ export async function getContractBalance(contractAddress) {
     }
   } catch (error) {
     console.error('Error fetching contract balance:', error);
-    return '0';
+    throw error;
   }
 }
 
