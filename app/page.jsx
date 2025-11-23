@@ -23,19 +23,86 @@ import {
 import WalletDashboard from '@/components/WalletDashboard';
 import './App.css';
 
+const CACHE_KEYS = {
+  walletAddress: 'cached_wallet_address',
+  balance: 'cached_balance',
+  classicBalance: 'cached_classic_balance',
+  lastUpdated: 'cached_last_updated',
+};
+
 export default function Home() {
   const [hasWallet, setHasWallet] = useState(false);
   const [loading, setLoading] = useState(true);
   const [publicKey, setPublicKey] = useState(null);
-  const [walletAddress, setWalletAddress] = useState(null);
-  const [balance, setBalance] = useState('0');
-  const [classicBalance, setClassicBalance] = useState('0');
+  const [walletAddress, setWalletAddress] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(CACHE_KEYS.walletAddress) || null;
+    }
+    return null;
+  });
+  const [balance, setBalance] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(CACHE_KEYS.balance) || '0';
+    }
+    return '0';
+  });
+  const [classicBalance, setClassicBalance] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(CACHE_KEYS.classicBalance) || '0';
+    }
+    return '0';
+  });
   const [userEmail, setUserEmail] = useState(null);
   const [statusMessage, setStatusMessage] = useState(null); // { type: 'success' | 'error', text: string }
+  const [lastUpdated, setLastUpdated] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const cached = localStorage.getItem(CACHE_KEYS.lastUpdated);
+      return cached ? parseInt(cached, 10) : null;
+    }
+    return null;
+  });
+
+  // Persist state to localStorage when it changes
+  useEffect(() => {
+    if (walletAddress) {
+      localStorage.setItem(CACHE_KEYS.walletAddress, walletAddress);
+    } else {
+      localStorage.removeItem(CACHE_KEYS.walletAddress);
+    }
+  }, [walletAddress]);
+
+  useEffect(() => {
+    localStorage.setItem(CACHE_KEYS.balance, balance);
+  }, [balance]);
+
+  useEffect(() => {
+    localStorage.setItem(CACHE_KEYS.classicBalance, classicBalance);
+  }, [classicBalance]);
+
+  useEffect(() => {
+    if (lastUpdated) {
+      localStorage.setItem(CACHE_KEYS.lastUpdated, lastUpdated.toString());
+    }
+  }, [lastUpdated]);
 
   useEffect(() => {
     initializeWallet();
   }, []);
+
+  // Refresh balances when window gains focus
+  useEffect(() => {
+    const handleFocus = () => {
+      if (publicKey) {
+        updateClassicBalance();
+      }
+      if (walletAddress) {
+        updateBalance();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [publicKey, walletAddress]);
 
   const initializeWallet = async () => {
     setLoading(true);
@@ -86,6 +153,7 @@ export default function Home() {
 
       const balance = await getBalance(publicKey);
       setClassicBalance(balance);
+      setLastUpdated(Date.now());
       console.log('Classic balance updated:', balance);
     } catch (error) {
       console.error('Error fetching classic balance:', error);
@@ -102,6 +170,7 @@ export default function Home() {
       // Use Soroban RPC to get contract balance
       const contractBalance = await getContractBalance(walletAddress);
       setBalance(contractBalance);
+      setLastUpdated(Date.now());
       console.log('Contract balance updated:', contractBalance);
     } catch (error) {
       console.error('Error fetching contract balance:', error);
@@ -261,12 +330,17 @@ export default function Home() {
   const handleReset = () => {
     clearKeypair();
     localStorage.removeItem('user_email');
+    localStorage.removeItem(CACHE_KEYS.walletAddress);
+    localStorage.removeItem(CACHE_KEYS.balance);
+    localStorage.removeItem(CACHE_KEYS.classicBalance);
+    localStorage.removeItem(CACHE_KEYS.lastUpdated);
     setHasWallet(false);
     setPublicKey(null);
     setWalletAddress(null);
     setBalance('0');
     setClassicBalance('0');
     setUserEmail(null);
+    setLastUpdated(null);
   };
 
   // Show full-page loading only during initial wallet setup
@@ -299,6 +373,7 @@ export default function Home() {
         onReset={handleReset}
         loading={loading}
         creatingWallet={loading && !hasWallet}
+        lastUpdated={lastUpdated}
       />
       {loading && hasWallet && (
         <div className="loading-overlay">

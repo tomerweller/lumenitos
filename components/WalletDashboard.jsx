@@ -21,7 +21,8 @@ function WalletDashboard({
   onFundAccount,
   onCreateWallet,
   loading,
-  creatingWallet
+  creatingWallet,
+  lastUpdated
 }) {
   const [showSend, setShowSend] = useState(false);
   const [showClassicSend, setShowClassicSend] = useState(false);
@@ -336,6 +337,12 @@ function WalletDashboard({
       </p>
 
       <hr />
+
+      {lastUpdated && (
+        <p>
+          updated: {new Date(lastUpdated).toLocaleString()}
+        </p>
+      )}
 
       <p>
         <a href="#" onClick={(e) => { e.preventDefault(); setShowDelete(true); }}>forget</a>
