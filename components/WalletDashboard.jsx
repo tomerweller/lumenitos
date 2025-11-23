@@ -142,7 +142,7 @@ function WalletDashboard({
       let count = 0;
       const intervalId = setInterval(() => {
         count++;
-        onRefreshBalance();
+        onRefreshBalances();
         if (count >= 5) {
           clearInterval(intervalId);
         }
@@ -168,8 +168,7 @@ function WalletDashboard({
       let count = 0;
       const intervalId = setInterval(() => {
         count++;
-        onRefreshBalance();
-        onRefreshClassicBalance();
+        onRefreshBalances();
         if (count >= 5) {
           clearInterval(intervalId);
         }
@@ -196,8 +195,7 @@ function WalletDashboard({
       let count = 0;
       const intervalId = setInterval(() => {
         count++;
-        onRefreshBalance();
-        onRefreshClassicBalance();
+        onRefreshBalances();
         if (count >= 5) {
           clearInterval(intervalId);
         }
