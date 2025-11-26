@@ -21,13 +21,16 @@ Both accounts can send and receive XLM independently, with balances fetched dire
 
 - **Dual Account Management**: Manage both classic and contract accounts from one keypair
 - **Smart Wallet Architecture**: Uses Crossmint smart wallets with external wallet signing
-- **Local Key Storage**: Private keys stored in browser localStorage
-- **Simple UX**: Minimalist text-based interface with dark/light theme toggle
+- **Local Key Storage**: Private keys stored in browser localStorage with cached state for instant loading
+- **Simple UX**: Minimalist text-based interface with dark/light theme toggle (bottom-right corner)
 - **QR Code Support**: Generate QR codes for receiving and scan QR codes for sending
+- **Muxed ID Support**: Optional muxed account IDs for both sending and receiving
+- **Auto-refresh**: Balances automatically refresh when window gains focus
 - **Core Operations**:
   - Generate new Stellar keypair with associated smart wallet
   - Send and receive XLM on both classic and contract accounts
-  - View balances for both accounts
+  - View balances for both accounts with last updated timestamp
+  - View contract TTLs (time-to-live) for instance, code, and balance entries
   - Fund testnet accounts via Friendbot
   - Progressive Web App (PWA) support for mobile
 
