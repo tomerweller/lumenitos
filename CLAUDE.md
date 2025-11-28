@@ -17,21 +17,28 @@
   - Exception: Only use force push if user explicitly requests it with clear understanding
 
 ### Commit Policy
-- Commits can be made when work is complete
-- Always ask or inform before committing if unclear
+**IMPORTANT**: Never commit automatically or proactively.
+
+- Only commit when explicitly requested by the user
+- Valid commit requests include:
+  - "commit"
+  - "commit this"
+  - "commit and push"
+  - Any explicit instruction to commit changes
 - Use descriptive commit messages following existing style
 - Do not use --no-verify or skip hooks
 
 ### Standard Workflow
 1. Make changes to files as requested
 2. Test changes if applicable
-3. Commit locally with clear message
-4. **WAIT** for explicit push instruction
-5. Before pushing, check if README.md is up to date with changes
+3. **WAIT** for explicit commit instruction
+4. Commit locally with clear message when requested
+5. **WAIT** for explicit push instruction
+6. Before pushing, check if README.md is up to date with changes
    - Review README.md against recent changes
    - Suggest updates if features/behavior changed
    - Update README if needed before pushing
-6. Only push when user requests it
+7. Only push when user requests it
 
 ## Code Style
 
