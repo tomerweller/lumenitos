@@ -62,6 +62,13 @@
 - Document breaking changes
 - Add comments for complex logic (e.g., XDR parsing, TTL calculations)
 
+### Debugging and Implementation Notes
+If a feature required non-trivial time and debugging to implement:
+- Explain what the issues were with the libraries, tools, and documentation used
+- Document workarounds or non-obvious solutions
+- Note any gaps or misleading information in official documentation
+- Help improve understanding for future development and debugging
+
 ## Security Notes
 - This is an experimental wallet - not production ready
 - Private keys stored in localStorage (not secure)
