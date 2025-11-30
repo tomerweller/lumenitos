@@ -1,37 +1,39 @@
 # Lumenitos
 
-A minimalist Stellar smart wallet built with Next.js and [Crossmint](https://www.crossmint.com/).
+A minimalist Stellar smart wallet built with Next.js and Soroban.
 
-**Live Demo:** https://lumenitos-testnet.vercel.app/ (testnet)
+**Live Demo:** https://lumenitos.vercel.app/ (testnet)
 
 ## Overview
 
-Lumenitos is an experimental Stellar smart wallet that combines local key management with Crossmint's smart wallet infrastructure. It provides a simple, text-based interface for creating and managing Stellar wallets on testnet.
+Lumenitos is an experimental Stellar smart wallet that combines local key management with a custom Soroban contract account. It provides a simple, text-based interface for creating and managing Stellar wallets on testnet.
 
 ### Dual Account Architecture
 
 Lumenitos manages two accounts from a single keypair:
 
 - **Classic Account (G...)**: A standard Stellar account that holds the keypair. Supports traditional Stellar operations and can send XLM to both classic and contract addresses.
-- **Contract Account (C...)**: A Crossmint smart wallet contract that uses the classic account as its admin signer. Enables programmable wallet features and smart contract interactions.
+- **Contract Account (C...)**: A custom `simple_account` Soroban contract that uses ed25519 signature verification. Enables self-custodied smart wallet functionality with programmable features.
 
 Both accounts can send and receive XLM independently, with balances fetched directly from Stellar RPC.
 
 ### Key Features
 
 - **Dual Account Management**: Manage both classic and contract accounts from one keypair
-- **Smart Wallet Architecture**: Uses Crossmint smart wallets with external wallet signing
+- **Self-Custodied Smart Wallet**: Custom Soroban contract with ed25519 signature verification
 - **Local Key Storage**: Private keys stored in browser localStorage with cached state for instant loading
+- **12-Word Recovery Phrase**: BIP39 mnemonic support with SEP-0005 derivation path
 - **Simple UX**: Minimalist text-based interface with dark/light theme toggle (bottom-right corner)
 - **QR Code Support**: Generate QR codes for receiving and scan QR codes for sending
 - **Muxed ID Support**: Optional muxed account IDs for both sending and receiving
 - **Auto-refresh**: Balances automatically refresh when window gains focus
 - **Core Operations**:
   - Generate new Stellar keypair with associated smart wallet
+  - Export/import wallet using 12-word recovery phrase
   - Send and receive XLM on both classic and contract accounts
   - View balances for both accounts with last updated timestamp
   - View transfer history for both accounts (last 5 XLM transfers via Soroban RPC)
-  - View contract TTLs (time-to-live) for instance, code, and balance entries
+  - View and extend contract TTLs (time-to-live) for instance, code, and balance entries
   - Fund testnet accounts via Friendbot
   - Progressive Web App (PWA) support for mobile
 
@@ -44,27 +46,23 @@ Both accounts can send and receive XLM independently, with balances fetched dire
   - `WalletSetup` - Initial wallet creation flow
   - `WalletDashboard` - Main wallet interface
 
-### Backend (Serverless API Routes)
-API routes that proxy Crossmint API calls and keep your API key server-side:
-
-- `/api/crossmint/wallets` - Create and retrieve wallets
-- `/api/crossmint/balances` - Get wallet balances
-- `/api/crossmint/transfers` - Initiate token transfers
-- `/api/crossmint/approvals` - Submit transaction approvals
+### Smart Contract
+- **Language**: Rust (Soroban SDK)
+- **Contract**: `simple_account` - implements `__check_auth` for custom account authentication
+- **Location**: `contracts/simple_account/`
 
 ### Wallet Flow
 
-1. **Local Keypair Generation**: Creates a Stellar keypair stored in browser
-2. **Smart Wallet Creation**: Creates a Crossmint smart wallet with the local key as admin signer
-3. **Transaction Signing**: Transactions are signed locally, then submitted to Crossmint
-4. **On-Chain Execution**: Crossmint submits the transaction to Stellar network
+1. **Local Keypair Generation**: Creates a Stellar keypair from a 12-word mnemonic stored in browser
+2. **Contract Deployment**: Deploys the `simple_account` contract with the keypair's public key as owner
+3. **Transaction Signing**: Transactions are signed locally using ed25519
+4. **On-Chain Verification**: The contract's `__check_auth` verifies signatures before authorizing operations
 
 ## Getting Started
 
 ### Prerequisites
 
 - Node.js 18+
-- A Crossmint API key ([get one here](https://www.crossmint.com/console))
 
 ### Installation
 
@@ -79,18 +77,12 @@ cd lumenitos
 npm install
 ```
 
-3. Set up environment variables:
-```bash
-# Create .env.local file
-echo "CROSSMINT_API_KEY=your_api_key_here" > .env.local
-```
-
-4. Run the development server:
+3. Run the development server:
 ```bash
 npm run dev
 ```
 
-5. Open [http://localhost:3000](http://localhost:3000) in your browser
+4. Open [http://localhost:3000](http://localhost:3000) in your browser
 
 ### Production Build
 
@@ -127,9 +119,15 @@ npm run test:e2e:headed  # Headed browser
 ### Creating a Wallet
 
 1. Click "Create Wallet" on the setup page
-2. A Stellar keypair is generated and stored locally
-3. A Crossmint smart wallet is created with your local key as the admin signer
-4. You'll see your wallet dashboard with balance and address
+2. A 12-word recovery phrase is generated and a Stellar keypair is derived
+3. The `simple_account` contract is deployed with your public key as the owner
+4. You'll see your wallet dashboard with balance and addresses
+
+### Importing a Wallet
+
+1. Click "Import" on the setup page
+2. Enter your 12-word recovery phrase
+3. The same keypair and contract address will be derived
 
 ### Funding Your Wallet (Testnet)
 
@@ -156,20 +154,18 @@ lumenitos/
 │   ├── layout.js             # Root layout with PWA support
 │   ├── ServiceWorkerRegistration.jsx  # Service worker registration
 │   ├── globals.css           # Global styles
-│   ├── manifest.json/route.js  # Dynamic PWA manifest
-│   └── api/
-│       └── crossmint/        # Serverless API routes
-│           ├── wallets/route.js
-│           ├── balances/route.js
-│           ├── transfers/route.js
-│           └── approvals/route.js
+│   └── manifest.json/route.js  # Dynamic PWA manifest
 ├── components/
 │   ├── WalletSetup.jsx       # Initial setup component
 │   ├── WalletDashboard.jsx   # Main wallet interface
 │   └── WalletDashboard.css   # Dashboard styles
+├── contracts/
+│   └── simple_account/       # Soroban smart contract
+│       ├── src/lib.rs        # Contract implementation
+│       ├── Cargo.toml        # Rust dependencies
+│       └── out/              # Compiled WASM artifact
 ├── utils/
 │   ├── config.js             # Configuration management
-│   ├── crossmint.js          # Crossmint API client
 │   └── stellar/              # Modular Stellar utilities
 │       ├── index.js          # Public API exports
 │       ├── storage.js        # Storage abstraction (localStorage/memory)
@@ -180,6 +176,8 @@ lumenitos/
 │       ├── transfer.js       # Transfer operations
 │       ├── contract.js       # Contract deployment and auth
 │       └── ttl.js            # TTL management
+├── scripts/
+│   └── compute-wasm-hash.js  # Compute WASM hash at build time
 ├── __tests__/
 │   ├── unit/                 # Unit tests for pure functions
 │   ├── integration/          # Integration tests (testnet RPC)
@@ -195,10 +193,12 @@ lumenitos/
 
 - **Next.js 16** - React framework with App Router
 - **Stellar SDK** - Stellar blockchain integration
+- **Soroban SDK** - Smart contract development (Rust)
 - **Soroban RPC** - Direct Stellar RPC for balance queries and transactions
-- **Crossmint API** - Smart wallet infrastructure
 - **QRCode.react** - QR code generation
 - **@yudiel/react-qr-scanner** - QR code scanning
+- **bip39** - Mnemonic phrase generation
+- **ed25519-hd-key** - HD key derivation
 - **localStorage** - Client-side key storage
 
 ### Testing
@@ -209,49 +209,23 @@ lumenitos/
 
 ## Security Notes
 
-⚠️ **THIS IS AN EXPERIMENTAL WALLET - NOT SECURE FOR PRODUCTION USE**
+**THIS IS AN EXPERIMENTAL WALLET - NOT SECURE FOR PRODUCTION USE**
 
 - **This wallet is NOT secure** - it is a proof of concept only
 - Private keys are stored in browser localStorage (not production-ready)
 - No encryption, no secure enclave, no hardware wallet support
 - Only use with testnet XLM
 - Do not use for real funds
-- This is a demonstration of Crossmint smart wallet architecture
+- This is a demonstration of custom Soroban contract account architecture
 
 ## Environment Variables
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| `CROSSMINT_API_KEY` | Your Crossmint API key | Yes |
 | `NEXT_PUBLIC_STELLAR_NETWORK` | Network to use (`testnet` or `mainnet`) | No (default: `testnet`) |
 | `NEXT_PUBLIC_STELLAR_SOROBAN_RPC_URL` | Soroban RPC endpoint | No (default: testnet RPC) |
 | `NEXT_PUBLIC_STELLAR_FRIENDBOT_URL` | Friendbot URL for testnet funding | No (default: testnet Friendbot) |
 | `NEXT_PUBLIC_STELLAR_EXPLORER_URL` | Block explorer URL | No (default: stellar.expert testnet) |
-
-## API Routes
-
-All API routes are serverless functions that run on the backend:
-
-### `POST /api/crossmint/wallets`
-Create a new smart wallet
-```json
-{
-  "publicKey": "GXXX...",
-  "userEmail": "user@example.com"
-}
-```
-
-### `GET /api/crossmint/wallets?locator=email:user@example.com:stellar`
-Get wallet information
-
-### `GET /api/crossmint/balances?locator=email:user@example.com:stellar`
-Get wallet balances
-
-### `POST /api/crossmint/transfers`
-Initiate a token transfer
-
-### `POST /api/crossmint/approvals`
-Submit transaction approval with signature
 
 ## Deployment
 
@@ -261,14 +235,13 @@ The easiest way to deploy Lumenitos:
 
 1. Push your code to GitHub
 2. Import the project to [Vercel](https://vercel.com)
-3. Add `CROSSMINT_API_KEY` to environment variables
-4. Deploy
+3. Deploy
 
-Vercel will automatically configure Next.js serverless functions.
+Vercel will automatically configure Next.js and build the application.
 
 ## Contributing
 
-Contributions are welcome! This is an experimental project demonstrating Crossmint smart wallet integration.
+Contributions are welcome! This is an experimental project demonstrating custom Soroban contract account integration.
 
 ## License
 
@@ -276,6 +249,6 @@ ISC
 
 ## Links
 
-- [Crossmint Documentation](https://docs.crossmint.com)
 - [Stellar Documentation](https://developers.stellar.org)
+- [Soroban Documentation](https://soroban.stellar.org)
 - [Next.js Documentation](https://nextjs.org/docs)

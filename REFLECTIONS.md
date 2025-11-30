@@ -1,6 +1,6 @@
 # Reflections: Implementing a Custom Stellar Contract Account
 
-This document captures the challenges, pitfalls, and lessons learned while implementing a custom Soroban smart wallet contract account in Lumenitos. The goal was to replace Crossmint-managed contract accounts with our own `simple_account` Soroban contract that uses ed25519 signature verification.
+This document captures the challenges, pitfalls, and lessons learned while implementing a custom Soroban smart wallet contract account in Lumenitos. The `simple_account` Soroban contract uses ed25519 signature verification for self-custodied smart wallet functionality.
 
 ## Overview
 

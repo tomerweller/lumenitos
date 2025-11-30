@@ -1,22 +1,10 @@
 /**
  * Configuration utility
  * Uses NEXT_PUBLIC_ prefixed environment variables for client-side access
- * and non-prefixed variables for server-side only (like API keys)
  */
-
-// Server-side only configuration (API keys, secrets)
-const serverConfig = {
-  crossmint: {
-    apiKey: process.env.CROSSMINT_API_KEY,
-  },
-};
 
 // Client-accessible configuration (safe to expose to browser)
 const publicConfig = {
-  crossmint: {
-    apiBase: process.env.NEXT_PUBLIC_CROSSMINT_API_BASE || 'https://staging.crossmint.com/api',
-    apiVersion: process.env.NEXT_PUBLIC_CROSSMINT_API_VERSION || '2025-06-09',
-  },
   stellar: {
     network: process.env.NEXT_PUBLIC_STELLAR_NETWORK || 'testnet',
     sorobanRpcUrl: process.env.NEXT_PUBLIC_STELLAR_SOROBAN_RPC_URL || 'https://soroban-testnet.stellar.org',
@@ -34,12 +22,8 @@ const publicConfig = {
   },
 };
 
-// Combined config for server-side API routes (merge crossmint objects properly)
+// Combined config export
 export const config = {
-  crossmint: {
-    ...serverConfig.crossmint,
-    ...publicConfig.crossmint,
-  },
   stellar: publicConfig.stellar,
   networkPassphrase: publicConfig.networkPassphrase,
   isTestnet: publicConfig.isTestnet,
