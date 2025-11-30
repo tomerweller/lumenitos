@@ -30,6 +30,7 @@ Both accounts can send and receive XLM independently, with balances fetched dire
   - Generate new Stellar keypair with associated smart wallet
   - Send and receive XLM on both classic and contract accounts
   - View balances for both accounts with last updated timestamp
+  - View transfer history for both accounts (last 5 XLM transfers via Soroban RPC)
   - View contract TTLs (time-to-live) for instance, code, and balance entries
   - Fund testnet accounts via Friendbot
   - Progressive Web App (PWA) support for mobile

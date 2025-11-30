@@ -456,3 +456,172 @@ export function signMessage(message) {
   const signatureString = String.fromCharCode.apply(null, signature);
   return btoa(signatureString);
 }
+
+/**
+ * Extract address string from ScVal
+ * @param {StellarSdk.xdr.ScVal} scVal - The ScVal to extract address from
+ * @returns {string} The address string
+ */
+function scValToAddress(scVal) {
+  try {
+    const native = StellarSdk.scValToNative(scVal);
+    if (typeof native === 'string') {
+      return native;
+    }
+    if (native && typeof native.toString === 'function') {
+      return native.toString();
+    }
+    return String(native);
+  } catch {
+    if (scVal.switch().name === 'scvAddress') {
+      const addr = scVal.address();
+      if (addr.switch().name === 'scAddressTypeAccount') {
+        return StellarSdk.Address.account(addr.accountId().ed25519()).toString();
+      } else if (addr.switch().name === 'scAddressTypeContract') {
+        return StellarSdk.Address.contract(addr.contractId()).toString();
+      }
+    }
+    return 'unknown';
+  }
+}
+
+/**
+ * Extract amount from ScVal (i128)
+ * @param {StellarSdk.xdr.ScVal} scVal - The ScVal containing the amount
+ * @returns {bigint} The amount as bigint
+ */
+function scValToAmount(scVal) {
+  try {
+    const native = StellarSdk.scValToNative(scVal);
+    return BigInt(native);
+  } catch {
+    if (scVal.switch().name === 'scvI128') {
+      const parts = scVal.i128();
+      const hi = BigInt(parts.hi().toString());
+      const lo = BigInt(parts.lo().toString());
+      return (hi << 64n) | lo;
+    }
+    return 0n;
+  }
+}
+
+/**
+ * Parse a transfer event into a structured format
+ * @param {object} event - The event from getEvents
+ * @param {string} targetAddress - The address we're tracking
+ * @returns {object} Parsed transfer info
+ */
+function parseTransferEvent(event, targetAddress) {
+  const topics = event.topic || [];
+
+  let from = 'unknown';
+  let to = 'unknown';
+  let amountXLM = 0;
+
+  // Topics: [transfer_symbol, from_address, to_address, asset_type]
+  if (topics.length >= 2) {
+    from = scValToAddress(topics[1]);
+  }
+
+  if (topics.length >= 3) {
+    to = scValToAddress(topics[2]);
+  }
+
+  // Value contains the amount
+  if (event.value) {
+    const stroops = scValToAmount(event.value);
+    amountXLM = Number(stroops) / 10_000_000;
+  }
+
+  const direction = from === targetAddress ? 'sent' : 'received';
+
+  return {
+    txHash: event.txHash,
+    ledger: event.ledger,
+    timestamp: event.ledgerClosedAt,
+    from,
+    to,
+    amountXLM,
+    direction,
+    counterparty: direction === 'sent' ? to : from
+  };
+}
+
+/**
+ * Fetch recent XLM transfer history for an address using Soroban RPC
+ * @param {string} address - The address to fetch transfers for (G or C address)
+ * @param {number} limit - Maximum number of transfers to return (default 5)
+ * @returns {Promise<Array>} Array of transfer objects
+ */
+export async function getTransferHistory(address, limit = 5) {
+  try {
+    const rpcServer = new StellarSdk.rpc.Server(config.stellar.sorobanRpcUrl);
+
+    // Get the native XLM SAC contract ID
+    const xlmAsset = StellarSdk.Asset.native();
+    const xlmContractId = xlmAsset.contractId(config.networkPassphrase);
+
+    // Get latest ledger for search range
+    const latestLedgerInfo = await rpcServer.getLatestLedger();
+    const latestLedger = latestLedgerInfo.sequence;
+
+    // Search the last 10000 ledgers (RPC limit per request)
+    const startLedger = Math.max(1, latestLedger - 10000);
+
+    // Create topic filters using SDK
+    // XLM transfer events have 4 topics: [transfer, from, to, asset_type]
+    const transferSymbol = StellarSdk.nativeToScVal('transfer', { type: 'symbol' });
+    const targetScVal = StellarSdk.nativeToScVal(StellarSdk.Address.fromString(address), {
+      type: 'address',
+    });
+
+    // Filter for transfers FROM the target address
+    const fromFilter = {
+      type: 'contract',
+      contractIds: [xlmContractId],
+      topics: [
+        [
+          transferSymbol.toXDR('base64'),
+          targetScVal.toXDR('base64'),
+          '*',
+          '*',
+        ],
+      ],
+    };
+
+    // Filter for transfers TO the target address
+    const toFilter = {
+      type: 'contract',
+      contractIds: [xlmContractId],
+      topics: [
+        [
+          transferSymbol.toXDR('base64'),
+          '*',
+          targetScVal.toXDR('base64'),
+          '*',
+        ],
+      ],
+    };
+
+    // Fetch events
+    const result = await rpcServer.getEvents({
+      startLedger,
+      filters: [fromFilter, toFilter],
+      limit: 100,
+    });
+
+    if (!result.events || result.events.length === 0) {
+      return [];
+    }
+
+    // Sort by ledger descending (most recent first) and take requested limit
+    const sortedEvents = result.events.sort((a, b) => b.ledger - a.ledger);
+    const limitedEvents = sortedEvents.slice(0, limit);
+
+    // Parse events into transfer objects
+    return limitedEvents.map(event => parseTransferEvent(event, address));
+  } catch (error) {
+    console.error('Error fetching transfer history:', error);
+    throw error;
+  }
+}
