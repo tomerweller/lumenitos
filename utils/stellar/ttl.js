@@ -49,28 +49,24 @@ export async function getContractTTLs(contractAddress, { rpcServer } = {}) {
 
         if (key.switch().name === 'scvLedgerKeyContractInstance') {
           result.instance = expirationLedger;
-
-          // Get WASM hash from instance to fetch code TTL
-          try {
-            const instanceVal = contractData.val();
-            if (instanceVal.switch().name === 'scvContractInstance') {
-              const instance = instanceVal.instance();
-              const executable = instance.executable();
-              if (executable.switch().name === 'contractExecutableWasm') {
-                const wasmHash = executable.wasmHash();
-                const codeKey = buildCodeLedgerKey(wasmHash);
-                const codeResponse = await rpcServer.getLedgerEntries(codeKey);
-                if (codeResponse.entries && codeResponse.entries.length > 0) {
-                  result.code = codeResponse.entries[0].liveUntilLedgerSeq;
-                }
-              }
-            }
-          } catch (e) {
-            console.error('Error fetching code TTL:', e);
-          }
         } else if (key.switch().name === 'scvVec') {
           result.balance = expirationLedger;
         }
+      }
+    }
+
+    // Fetch code TTL using known WASM hash
+    const wasmHashHex = config.stellar.simpleAccountWasmHash;
+    if (wasmHashHex) {
+      try {
+        const wasmHash = Buffer.from(wasmHashHex, 'hex');
+        const codeKey = buildCodeLedgerKey(wasmHash);
+        const codeResponse = await rpcServer.getLedgerEntries(codeKey);
+        if (codeResponse.entries && codeResponse.entries.length > 0) {
+          result.code = codeResponse.entries[0].liveUntilLedgerSeq;
+        }
+      } catch (e) {
+        console.error('Error fetching code TTL:', e);
       }
     }
 
@@ -132,40 +128,17 @@ export async function bumpInstanceTTL(contractAddress, deps = {}) {
 
 /**
  * Bump TTL of contract code (WASM) to maximum
- * @param {string} contractAddress - The contract address (C...)
+ * Uses the known simple_account WASM hash from config
  * @param {object} deps - Dependencies
  * @returns {Promise<object>} Transaction result
  */
-export async function bumpCodeTTL(contractAddress, { rpcServer, keypair } = {}) {
-  keypair = keypair || getStoredKeypair();
-  if (!keypair) {
-    throw new Error('No keypair found in storage');
+export async function bumpCodeTTL({ rpcServer, keypair } = {}) {
+  const wasmHashHex = config.stellar.simpleAccountWasmHash;
+  if (!wasmHashHex) {
+    throw new Error('WASM hash not configured');
   }
 
-  rpcServer = rpcServer || createRpcServer();
-  const contractId = StellarSdk.StrKey.decodeContract(contractAddress);
-
-  // Get WASM hash from instance
-  const instanceKey = buildInstanceLedgerKey(contractId);
-  const instanceResponse = await rpcServer.getLedgerEntries(instanceKey);
-
-  if (!instanceResponse.entries || instanceResponse.entries.length === 0) {
-    throw new Error('Contract instance not found');
-  }
-
-  const instanceData = instanceResponse.entries[0].val.contractData();
-  const instanceVal = instanceData.val();
-
-  if (instanceVal.switch().name !== 'scvContractInstance') {
-    throw new Error('Invalid contract instance');
-  }
-
-  const executable = instanceVal.instance().executable();
-  if (executable.switch().name !== 'contractExecutableWasm') {
-    throw new Error('Contract is not WASM-based');
-  }
-
-  const wasmHash = executable.wasmHash();
+  const wasmHash = Buffer.from(wasmHashHex, 'hex');
   const codeKey = buildCodeLedgerKey(wasmHash);
 
   return extendTTL(codeKey, { rpcServer, keypair });

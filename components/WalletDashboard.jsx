@@ -280,7 +280,7 @@ function WalletDashboard({
     e.preventDefault();
     setBumpingCode(true);
     try {
-      await bumpCodeTTL(walletAddress);
+      await bumpCodeTTL();
       await refreshTTLs();
     } catch (error) {
       console.error('Error bumping code TTL:', error);
