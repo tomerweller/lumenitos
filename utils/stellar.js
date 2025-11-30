@@ -1,17 +1,35 @@
 import * as StellarSdk from '@stellar/stellar-sdk';
+import * as bip39 from 'bip39';
+import { derivePath } from 'ed25519-hd-key';
 import config from './config';
 
 const STORAGE_KEY = 'stellar_keypair';
+const MNEMONIC_KEY = 'stellar_mnemonic';
+
+// SEP-0005 derivation path for Stellar
+const STELLAR_DERIVATION_PATH = "m/44'/148'/0'";
 
 /**
- * Generate a new ed25519 keypair and store it in local storage
+ * Generate a new ed25519 keypair from a 12-word mnemonic and store both in local storage
+ * Uses SEP-0005 derivation path for Stellar compatibility
  * @returns {StellarSdk.Keypair} The generated keypair
  */
 export function generateAndStoreKeypair() {
-  const keypair = StellarSdk.Keypair.random();
+  // Generate 12-word mnemonic (128 bits of entropy)
+  const mnemonic = bip39.generateMnemonic(128);
+
+  // Derive seed from mnemonic
+  const seed = bip39.mnemonicToSeedSync(mnemonic);
+
+  // Derive ed25519 key using SEP-0005 path
+  const derivedKey = derivePath(STELLAR_DERIVATION_PATH, seed.toString('hex'));
+
+  // Create Stellar keypair from the derived raw seed
+  const keypair = StellarSdk.Keypair.fromRawEd25519Seed(derivedKey.key);
   const secretKey = keypair.secret();
 
-  // Store the secret key in local storage (encrypted in production!)
+  // Store both mnemonic and secret key in local storage
+  localStorage.setItem(MNEMONIC_KEY, mnemonic);
   localStorage.setItem(STORAGE_KEY, secretKey);
 
   return keypair;
@@ -46,10 +64,51 @@ export function getPublicKey() {
 }
 
 /**
- * Clear the stored keypair (for logout or reset)
+ * Clear the stored keypair and mnemonic (for logout or reset)
  */
 export function clearKeypair() {
   localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(MNEMONIC_KEY);
+}
+
+/**
+ * Get the stored mnemonic phrase
+ * @returns {string | null} The 12-word mnemonic if it exists, null otherwise
+ */
+export function getMnemonic() {
+  return localStorage.getItem(MNEMONIC_KEY);
+}
+
+/**
+ * Import a wallet from a 12-word mnemonic phrase
+ * @param {string} mnemonic - The 12-word BIP39 mnemonic phrase
+ * @returns {StellarSdk.Keypair} The derived keypair
+ * @throws {Error} If the mnemonic is invalid
+ */
+export function importFromMnemonic(mnemonic) {
+  // Normalize the mnemonic (trim whitespace, lowercase, single spaces)
+  const normalizedMnemonic = mnemonic.trim().toLowerCase().replace(/\s+/g, ' ');
+
+  // Validate the mnemonic
+  if (!bip39.validateMnemonic(normalizedMnemonic)) {
+    throw new Error('Invalid mnemonic phrase. Please check your 12 words.');
+  }
+
+  // Derive seed from mnemonic
+  const seed = bip39.mnemonicToSeedSync(normalizedMnemonic);
+
+  // Derive ed25519 key using SEP-0005 path
+  const derivedKey = derivePath(STELLAR_DERIVATION_PATH, seed.toString('hex'));
+
+  // Create Stellar keypair from the derived raw seed
+  const keypair = StellarSdk.Keypair.fromRawEd25519Seed(derivedKey.key);
+  const secretKey = keypair.secret();
+
+  // Store both mnemonic and secret key in local storage
+  localStorage.setItem(MNEMONIC_KEY, normalizedMnemonic);
+  localStorage.setItem(STORAGE_KEY, secretKey);
+
+  return keypair;
 }
 
 /**

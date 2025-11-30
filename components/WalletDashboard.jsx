@@ -5,7 +5,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { MuxedAccount } from '@stellar/stellar-sdk';
 import config from '../utils/config';
-import { getContractTTLs, getTransferHistory } from '../utils/stellar';
+import { getContractTTLs, getTransferHistory, getMnemonic } from '../utils/stellar';
 import './WalletDashboard.css';
 
 function WalletDashboard({
@@ -19,6 +19,7 @@ function WalletDashboard({
   onReset,
   onFundAccount,
   onCreateWallet,
+  onImportWallet,
   loading,
   creatingWallet,
   lastUpdated
@@ -35,6 +36,11 @@ function WalletDashboard({
   const [loadingTTLs, setLoadingTTLs] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showClassicHistory, setShowClassicHistory] = useState(false);
+  const [showExport, setShowExport] = useState(false);
+  const [showImport, setShowImport] = useState(false);
+  const [importMnemonic, setImportMnemonic] = useState('');
+  const [importError, setImportError] = useState('');
+  const [importing, setImporting] = useState(false);
   const [historyData, setHistoryData] = useState(null);
   const [classicHistoryData, setClassicHistoryData] = useState(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -76,6 +82,7 @@ function WalletDashboard({
     setTtlData(null);
     setShowHistory(false);
     setShowClassicHistory(false);
+    setShowExport(false);
     setHistoryData(null);
     setClassicHistoryData(null);
     setDestination('');
@@ -271,6 +278,21 @@ function WalletDashboard({
     }
   };
 
+  const handleImport = async (e) => {
+    e.preventDefault();
+    setImportError('');
+    setImporting(true);
+    try {
+      await onImportWallet(importMnemonic);
+      setShowImport(false);
+      setImportMnemonic('');
+    } catch (error) {
+      setImportError(error.message);
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const shortenAddressForHistory = (address) => {
     if (!address || address.length < 12) return address;
     return `${address.substring(0, 4)}..${address.substring(address.length - 4)}`;
@@ -297,7 +319,48 @@ function WalletDashboard({
           <a href="#" onClick={(e) => { e.preventDefault(); onCreateWallet(); }}>
             {creatingWallet ? 'loading...' : 'generate wallet'}
           </a>
+          {' | '}
+          <a href="#" onClick={(e) => { e.preventDefault(); setShowImport(true); }}>
+            import
+          </a>
         </p>
+
+        {showImport && (
+          <div className="modal-overlay" onClick={() => !importing && setShowImport(false)}>
+            <div className="modal" onClick={(e) => e.stopPropagation()}>
+              <h3>import wallet</h3>
+
+              <p>enter your 12-word recovery phrase to restore your wallet.</p>
+
+              <form onSubmit={handleImport}>
+                <div className="form-group">
+                  <label htmlFor="importMnemonic">recovery phrase</label>
+                  <textarea
+                    id="importMnemonic"
+                    value={importMnemonic}
+                    onChange={(e) => setImportMnemonic(e.target.value)}
+                    placeholder="word1 word2 word3 ..."
+                    rows={3}
+                    required
+                    disabled={importing}
+                  />
+                </div>
+
+                {importError && (
+                  <p className="error">{importError}</p>
+                )}
+
+                <p>
+                  <a href="#" onClick={(e) => { e.preventDefault(); setShowImport(false); setImportError(''); setImportMnemonic(''); }}>cancel</a>
+                  {' | '}
+                  <a href="#" onClick={handleImport}>
+                    {importing ? 'importing...' : 'import'}
+                  </a>
+                </p>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -382,6 +445,8 @@ function WalletDashboard({
         <a href="#" onClick={handleRefresh}>
           {refreshing ? 'refreshing' : refreshed ? 'refreshed!' : 'refresh'}
         </a>
+        {' | '}
+        <a href="#" onClick={(e) => { e.preventDefault(); setShowExport(true); }}>export</a>
         {' | '}
         <a href="#" onClick={(e) => { e.preventDefault(); setShowDelete(true); }}>forget</a>
       </p>
@@ -698,6 +763,48 @@ function WalletDashboard({
             <p>
               <a href="#" onClick={(e) => { e.preventDefault(); setShowClassicHistory(false); }}>close</a>
             </p>
+          </div>
+        </div>
+      )}
+
+      {showExport && (
+        <div className="modal-overlay" onClick={() => setShowExport(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>recovery phrase</h3>
+
+            <p className="warning">write these 12 words down and store them safely. anyone with this phrase can access your wallet.</p>
+
+            {(() => {
+              const mnemonic = getMnemonic();
+              if (!mnemonic) {
+                return <p>no recovery phrase available (wallet created before mnemonic support)</p>;
+              }
+              const words = mnemonic.split(' ');
+              return (
+                <>
+                  <div className="mnemonic-grid">
+                    {words.map((word, index) => (
+                      <div key={index} className="mnemonic-word">
+                        <span className="word-number">{index + 1}.</span> {word}
+                      </div>
+                    ))}
+                  </div>
+                  <p>
+                    <a href="#" onClick={(e) => { e.preventDefault(); copyToClipboard(mnemonic, 'mnemonic'); }}>
+                      {copied === 'mnemonic' ? 'copied!' : 'copy (unsafe!)'}
+                    </a>
+                    {' | '}
+                    <a href="#" onClick={(e) => { e.preventDefault(); setShowExport(false); }}>close</a>
+                  </p>
+                </>
+              );
+            })()}
+
+            {!getMnemonic() && (
+              <p>
+                <a href="#" onClick={(e) => { e.preventDefault(); setShowExport(false); }}>close</a>
+              </p>
+            )}
           </div>
         </div>
       )}

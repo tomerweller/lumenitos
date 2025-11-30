@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import {
   hasKeypair,
   generateAndStoreKeypair,
+  importFromMnemonic,
   getPublicKey,
   clearKeypair,
   fundTestnetAccount,
@@ -196,6 +197,35 @@ export default function Home() {
     }
   };
 
+  const handleImportWallet = async (mnemonic) => {
+    setLoading(true);
+    try {
+      // Import keypair from mnemonic
+      const keypair = importFromMnemonic(mnemonic);
+      const pubKey = keypair.publicKey();
+      setPublicKey(pubKey);
+
+      // Derive the contract address from public key
+      const contractAddr = deriveContractAddress(pubKey);
+      setWalletAddress(contractAddr);
+
+      // Fetch balances (wallet may already have funds)
+      const classicBal = await getBalance(pubKey);
+      setClassicBalance(classicBal);
+
+      const contractBalance = await getContractBalance(contractAddr);
+      setBalance(contractBalance);
+
+      setHasWallet(true);
+      setLastUpdated(Date.now());
+    } catch (error) {
+      console.error('Error importing wallet:', error);
+      throw error; // Re-throw to let the UI handle it
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSendXLM = async (destination, amount) => {
     setLoading(true);
     setStatusMessage(null);
@@ -319,6 +349,7 @@ export default function Home() {
         onRefreshBalances={refreshBalances}
         onFundAccount={handleFundAccount}
         onCreateWallet={handleCreateWallet}
+        onImportWallet={handleImportWallet}
         onReset={handleReset}
         loading={loading}
         creatingWallet={loading && !hasWallet}

@@ -154,6 +154,34 @@
   line-height: 1.6;
 }
 
+.form-group textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--text-secondary);
+  border-radius: 3px;
+  font-family: var(--mono-font);
+  font-size: 0.9em;
+  background: var(--background);
+  color: var(--text-primary);
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.form-group textarea:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.form-group textarea:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.error {
+  color: #dc3545;
+  font-size: 0.9em;
+}
+
 /* Scanner modal */
 .scanner-modal {
   padding: 20px;
@@ -164,8 +192,39 @@
   overflow: hidden;
 }
 
+/* Mnemonic/Recovery phrase styles */
+.mnemonic-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin: 20px 0;
+}
+
+.mnemonic-word {
+  background: var(--background);
+  border: 1px solid var(--text-secondary);
+  padding: 8px 12px;
+  border-radius: 3px;
+  font-family: var(--mono-font);
+  font-size: 0.9em;
+}
+
+.word-number {
+  color: var(--text-secondary);
+  margin-right: 4px;
+}
+
+.warning {
+  color: #dc3545;
+  font-weight: 600;
+}
+
 @media (max-width: 640px) {
   .wallet-dashboard {
     padding: 20px 10px;
+  }
+
+  .mnemonic-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
