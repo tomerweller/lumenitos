@@ -99,6 +99,29 @@ npm run build
 npm start
 ```
 
+### Running Tests
+
+```bash
+# Run all Jest tests
+npm test
+
+# Run specific test suites
+npm run test:unit        # Unit tests (pure functions)
+npm run test:integration # Integration tests (testnet RPC)
+npm run test:components  # React component tests
+
+# Watch mode for development
+npm run test:watch
+
+# Generate coverage report
+npm run test:coverage
+
+# Run E2E tests with Playwright
+npm run test:e2e         # Headless
+npm run test:e2e:ui      # Interactive UI mode
+npm run test:e2e:headed  # Headed browser
+```
+
 ## Usage
 
 ### Creating a Wallet
@@ -145,9 +168,23 @@ lumenitos/
 │   ├── WalletDashboard.jsx   # Main wallet interface
 │   └── WalletDashboard.css   # Dashboard styles
 ├── utils/
-│   ├── stellar.js            # Stellar SDK utilities
+│   ├── config.js             # Configuration management
 │   ├── crossmint.js          # Crossmint API client
-│   └── config.js             # Configuration management
+│   └── stellar/              # Modular Stellar utilities
+│       ├── index.js          # Public API exports
+│       ├── storage.js        # Storage abstraction (localStorage/memory)
+│       ├── rpc.js            # RPC client factory
+│       ├── keypair.js        # Keypair derivation and management
+│       ├── helpers.js        # Conversion utilities
+│       ├── balance.js        # Balance queries
+│       ├── transfer.js       # Transfer operations
+│       ├── contract.js       # Contract deployment and auth
+│       └── ttl.js            # TTL management
+├── __tests__/
+│   ├── unit/                 # Unit tests for pure functions
+│   ├── integration/          # Integration tests (testnet RPC)
+│   └── components/           # React component tests
+├── e2e/                      # Playwright E2E tests
 └── public/
     ├── sw.js                 # Service worker
     ├── icon-192.png          # PWA icon (192x192)
@@ -156,13 +193,19 @@ lumenitos/
 
 ## Technology Stack
 
-- **Next.js 15** - React framework with App Router
+- **Next.js 16** - React framework with App Router
 - **Stellar SDK** - Stellar blockchain integration
 - **Soroban RPC** - Direct Stellar RPC for balance queries and transactions
 - **Crossmint API** - Smart wallet infrastructure
 - **QRCode.react** - QR code generation
 - **@yudiel/react-qr-scanner** - QR code scanning
 - **localStorage** - Client-side key storage
+
+### Testing
+
+- **Jest** - Unit and integration testing
+- **React Testing Library** - Component testing
+- **Playwright** - End-to-end browser testing
 
 ## Security Notes
 
