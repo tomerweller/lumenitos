@@ -18,7 +18,8 @@ import {
   getWallet,
   getWalletBalance,
   transferToken,
-  approveTransaction
+  approveTransaction,
+  waitForTransaction
 } from '@/utils/crossmint';
 import WalletDashboard from '@/components/WalletDashboard';
 import './App.css';
@@ -261,7 +262,13 @@ export default function Home() {
         signature
       );
 
-      console.log('Approval submitted:', approvalResult);
+      console.log('Approval submitted:', approvalResult.status);
+
+      // Step 5: Wait for transaction to complete on-chain
+      console.log('Waiting for transaction to complete...');
+      const finalResult = await waitForTransaction(locator, transactionId);
+      console.log('Transaction completed:', finalResult.status);
+      console.log('On-chain TX hash:', finalResult.onChain?.txId);
 
       // Update balance after successful transaction
       await updateBalance();

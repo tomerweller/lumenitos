@@ -112,3 +112,50 @@ export async function approveTransaction(locator, transactionId, signerAddress, 
 
   return await response.json();
 }
+
+/**
+ * Get transaction status
+ * @param {string} locator - Wallet locator
+ * @param {string} transactionId - Transaction ID
+ * @returns {Promise<object>} The transaction details
+ */
+export async function getTransactionStatus(locator, transactionId) {
+  const response = await fetch(`/api/crossmint/transactions?locator=${encodeURIComponent(locator)}&transactionId=${encodeURIComponent(transactionId)}`, {
+    method: 'GET'
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(`Failed to get transaction status: ${error.error || response.statusText}`);
+  }
+
+  return await response.json();
+}
+
+/**
+ * Wait for a transaction to complete (success or failed)
+ * @param {string} locator - Wallet locator
+ * @param {string} transactionId - Transaction ID
+ * @param {number} maxAttempts - Maximum polling attempts (default 30)
+ * @param {number} intervalMs - Polling interval in ms (default 2000)
+ * @returns {Promise<object>} The final transaction status
+ */
+export async function waitForTransaction(locator, transactionId, maxAttempts = 30, intervalMs = 2000) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const tx = await getTransactionStatus(locator, transactionId);
+
+    if (tx.status === 'success') {
+      return tx;
+    }
+
+    if (tx.status === 'failed') {
+      const errorMsg = tx.error?.message || 'Transaction failed';
+      throw new Error(errorMsg);
+    }
+
+    // Still pending, wait and retry
+    await new Promise(resolve => setTimeout(resolve, intervalMs));
+  }
+
+  throw new Error('Transaction timed out waiting for confirmation');
+}
