@@ -1,26 +1,18 @@
 'use client'
 
 import React, { useState, useEffect } from 'react';
-import * as StellarSdk from '@stellar/stellar-sdk';
 import {
   hasKeypair,
   generateAndStoreKeypair,
   getPublicKey,
   clearKeypair,
   fundTestnetAccount,
-  signMessage,
   getBalance,
   getContractBalance,
-  buildSACTransfer
+  buildSACTransfer,
+  deriveContractAddress,
+  sendFromContractAccount
 } from '@/utils/stellar';
-import {
-  createWallet,
-  getWallet,
-  getWalletBalance,
-  transferToken,
-  approveTransaction,
-  waitForTransaction
-} from '@/utils/crossmint';
 import WalletDashboard from '@/components/WalletDashboard';
 import './App.css';
 
@@ -53,7 +45,6 @@ export default function Home() {
     }
     return '0';
   });
-  const [userEmail, setUserEmail] = useState(null);
   const [statusMessage, setStatusMessage] = useState(null); // { type: 'success' | 'error', text: string }
   const [lastUpdated, setLastUpdated] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -110,30 +101,18 @@ export default function Home() {
         const pubKey = getPublicKey();
         setPublicKey(pubKey);
 
-        // Fetch classic balance directly with pubKey
+        // Derive the contract address from public key
+        const contractAddr = deriveContractAddress(pubKey);
+        setWalletAddress(contractAddr);
+
+        // Fetch balances
         const classicBal = await getBalance(pubKey);
         setClassicBalance(classicBal);
 
-        // Check if user email is stored
-        const email = localStorage.getItem('user_email');
-        if (email) {
-          setUserEmail(email);
+        const contractBalance = await getContractBalance(contractAddr);
+        setBalance(contractBalance);
 
-          // Try to get Crossmint wallet
-          const locator = `email:${email}:stellar`;
-          const wallet = await getWallet(locator);
-
-          if (wallet) {
-            setWalletAddress(wallet.address);
-            setUserEmail(email);
-
-            // Fetch contract balance using Soroban RPC
-            const contractBalance = await getContractBalance(wallet.address);
-            setBalance(contractBalance);
-
-            setHasWallet(true);
-          }
-        }
+        setHasWallet(true);
       }
     } catch (error) {
       console.error('Error initializing wallet:', error);
@@ -199,22 +178,15 @@ export default function Home() {
       const pubKey = keypair.publicKey();
       setPublicKey(pubKey);
 
-      // Create email using public key for Crossmint owner locator
-      const email = `${pubKey}@lumenitos.money`;
+      // Derive the contract address from public key
+      // Contract will be deployed lazily on first send
+      const contractAddr = deriveContractAddress(pubKey);
+      setWalletAddress(contractAddr);
 
-      // Store generated email
-      localStorage.setItem('user_email', email);
-      setUserEmail(email);
+      // Initial balances are 0
+      setBalance('0');
+      setClassicBalance('0');
 
-      // Create Crossmint wallet with the public key as signer
-      const wallet = await createWallet(pubKey, email);
-      setWalletAddress(wallet.address);
-
-      // Fetch contract balance using Soroban RPC
-      const contractBalance = await getContractBalance(wallet.address);
-      setBalance(contractBalance);
-
-      await updateClassicBalance();
       setHasWallet(true);
     } catch (error) {
       console.error('Error generating wallet:', error);
@@ -228,50 +200,13 @@ export default function Home() {
     setLoading(true);
     setStatusMessage(null);
     try {
-      // Create wallet locator
-      const locator = `email:${userEmail}:stellar`;
+      // Send XLM from contract account (will deploy contract if needed)
+      await sendFromContractAccount(destination, amount);
 
-      // Step 1: Create transfer (returns unsigned transaction)
-      const transferResult = await transferToken(locator, 'stellar:xlm', {
-        recipient: destination,
-        amount: amount
-      });
+      console.log('Contract account transfer successful');
 
-      console.log('Transfer initiated:', transferResult);
-
-      // Step 2: Extract transaction ID and message to sign
-      const transactionId = transferResult.id;
-      const pendingApproval = transferResult.approvals?.pending?.[0];
-
-      if (!pendingApproval || !pendingApproval.message) {
-        throw new Error('No pending approval found in transaction response');
-      }
-
-      const messageToSign = pendingApproval.message;
-      const signerAddress = pendingApproval.signer.address;
-
-      // Step 3: Sign the message
-      const signature = signMessage(messageToSign);
-      console.log('Message signed');
-
-      // Step 4: Submit the approval
-      const approvalResult = await approveTransaction(
-        locator,
-        transactionId,
-        signerAddress,
-        signature
-      );
-
-      console.log('Approval submitted:', approvalResult.status);
-
-      // Step 5: Wait for transaction to complete on-chain
-      console.log('Waiting for transaction to complete...');
-      const finalResult = await waitForTransaction(locator, transactionId);
-      console.log('Transaction completed:', finalResult.status);
-      console.log('On-chain TX hash:', finalResult.onChain?.txId);
-
-      // Update balance after successful transaction
-      await updateBalance();
+      // Update balances after successful transaction
+      await refreshBalances();
 
       // Show success message
       setStatusMessage({ type: 'success', text: `Successfully sent ${amount} XLM!` });
@@ -281,10 +216,8 @@ export default function Home() {
         setLoading(false);
         setStatusMessage(null);
       }, 2000);
-
-      return approvalResult;
     } catch (error) {
-      console.error('Error sending XLM:', error);
+      console.error('Error sending XLM from contract account:', error);
       setStatusMessage({ type: 'error', text: `Failed to send XLM: ${error.message}` });
 
       // Auto-close error after 3 seconds
@@ -348,7 +281,6 @@ export default function Home() {
 
   const handleReset = () => {
     clearKeypair();
-    localStorage.removeItem('user_email');
     localStorage.removeItem(CACHE_KEYS.walletAddress);
     localStorage.removeItem(CACHE_KEYS.balance);
     localStorage.removeItem(CACHE_KEYS.classicBalance);
@@ -358,7 +290,6 @@ export default function Home() {
     setWalletAddress(null);
     setBalance('0');
     setClassicBalance('0');
-    setUserEmail(null);
     setLastUpdated(null);
   };
 

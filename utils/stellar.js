@@ -627,3 +627,332 @@ export async function getTransferHistory(address, limit = 5) {
     throw error;
   }
 }
+
+// ============================================
+// Simple Account Contract Functions
+// ============================================
+
+/**
+ * Derive a deterministic salt from the public key.
+ * The salt is the raw 32-byte ed25519 public key.
+ * @param {string} publicKey - The Stellar public key (G...)
+ * @returns {Buffer} 32-byte salt
+ */
+function deriveContractSalt(publicKey) {
+  // Decode the public key to get the raw 32 bytes
+  return StellarSdk.StrKey.decodeEd25519PublicKey(publicKey);
+}
+
+/**
+ * Derive the deterministic contract address for a given public key.
+ * The address is derived from the deployer (the public key itself) and the salt (also from public key).
+ * @param {string} publicKey - The Stellar public key (G...)
+ * @returns {string} The contract address (C...)
+ */
+export function deriveContractAddress(publicKey) {
+  const salt = deriveContractSalt(publicKey);
+  // Hash the deployer address with the salt to get contract address
+  // Using the same derivation as stellar SDK's contract.address()
+  const preimage = StellarSdk.xdr.HashIdPreimage.envelopeTypeContractId(
+    new StellarSdk.xdr.HashIdPreimageContractId({
+      networkId: StellarSdk.hash(new TextEncoder().encode(config.networkPassphrase)),
+      contractIdPreimage: StellarSdk.xdr.ContractIdPreimage.contractIdPreimageFromAddress(
+        new StellarSdk.xdr.ContractIdPreimageFromAddress({
+          address: new StellarSdk.Address(publicKey).toScAddress(),
+          salt: salt,
+        })
+      ),
+    })
+  );
+  const contractId = StellarSdk.hash(preimage.toXDR());
+  return StellarSdk.StrKey.encodeContract(contractId);
+}
+
+/**
+ * Check if a contract instance exists on-chain.
+ * @param {string} contractAddress - The contract address (C...)
+ * @returns {Promise<boolean>} True if the contract instance exists
+ */
+export async function contractInstanceExists(contractAddress) {
+  try {
+    const rpcServer = new StellarSdk.rpc.Server(config.stellar.sorobanRpcUrl);
+    const contractId = StellarSdk.StrKey.decodeContract(contractAddress);
+
+    // Create the instance ledger key
+    const instanceKey = StellarSdk.xdr.LedgerKey.contractData(
+      new StellarSdk.xdr.LedgerKeyContractData({
+        contract: StellarSdk.Address.contract(contractId).toScAddress(),
+        key: StellarSdk.xdr.ScVal.scvLedgerKeyContractInstance(),
+        durability: StellarSdk.xdr.ContractDataDurability.persistent()
+      })
+    );
+
+    const response = await rpcServer.getLedgerEntries(instanceKey);
+    return response.entries && response.entries.length > 0;
+  } catch (error) {
+    console.error('Error checking contract instance:', error);
+    return false;
+  }
+}
+
+/**
+ * Deploy the simple account contract for the stored keypair.
+ * This creates a new contract instance with the public key as owner.
+ * @returns {Promise<string>} The deployed contract address
+ */
+export async function deploySimpleAccount() {
+  const keypair = getStoredKeypair();
+  if (!keypair) {
+    throw new Error('No keypair found in storage');
+  }
+
+  const wasmHash = config.stellar.simpleAccountWasmHash;
+  if (!wasmHash) {
+    throw new Error('Simple account WASM hash not configured');
+  }
+
+  const rpcServer = new StellarSdk.rpc.Server(config.stellar.sorobanRpcUrl);
+  const publicKey = keypair.publicKey();
+  const salt = deriveContractSalt(publicKey);
+
+  // Get the source account
+  const sourceAccount = await rpcServer.getAccount(publicKey);
+
+  // Create the deploy operation with constructor args
+  // The constructor takes the owner's public key as BytesN<32>
+  // Convert hex string to Uint8Array for browser compatibility
+  const wasmHashBytes = new Uint8Array(wasmHash.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+  const pubKeyBytes = StellarSdk.StrKey.decodeEd25519PublicKey(publicKey);
+
+  const deployOp = StellarSdk.Operation.createCustomContract({
+    address: new StellarSdk.Address(publicKey),
+    wasmHash: wasmHashBytes,
+    salt: salt,
+    constructorArgs: [
+      StellarSdk.nativeToScVal(pubKeyBytes, { type: 'bytes' })
+    ],
+  });
+
+  // Build the transaction
+  let transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
+    fee: '10000000', // 1 XLM fee for contract deployment
+    networkPassphrase: config.networkPassphrase,
+  })
+    .addOperation(deployOp)
+    .setTimeout(30)
+    .build();
+
+  // Simulate and prepare
+  transaction = await rpcServer.prepareTransaction(transaction);
+
+  // Sign
+  transaction.sign(keypair);
+
+  // Submit
+  const response = await rpcServer.sendTransaction(transaction);
+
+  // Wait for confirmation
+  if (response.status === 'PENDING') {
+    const maxAttempts = 10;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      const getResponse = await rpcServer.getTransaction(response.hash);
+
+      if (getResponse.status === 'SUCCESS') {
+        return deriveContractAddress(publicKey);
+      } else if (getResponse.status === 'FAILED') {
+        throw new Error(`Contract deployment failed: ${getResponse.status}`);
+      }
+    }
+    throw new Error('Contract deployment timed out');
+  }
+
+  return deriveContractAddress(publicKey);
+}
+
+/**
+ * Send XLM from the contract account to a destination.
+ * If the contract doesn't exist, it will be deployed first.
+ * The classic account sponsors the transaction.
+ * @param {string} destination - The destination address
+ * @param {string} amount - Amount of XLM to send
+ * @returns {Promise<object>} The transaction result
+ */
+export async function sendFromContractAccount(destination, amount) {
+  const keypair = getStoredKeypair();
+  if (!keypair) {
+    throw new Error('No keypair found in storage');
+  }
+
+  const publicKey = keypair.publicKey();
+  const contractAddress = deriveContractAddress(publicKey);
+
+  // Check if contract exists, deploy if not
+  const exists = await contractInstanceExists(contractAddress);
+  if (!exists) {
+    console.log('Contract does not exist, deploying...');
+    await deploySimpleAccount();
+    console.log('Contract deployed at:', contractAddress);
+  }
+
+  const rpcServer = new StellarSdk.rpc.Server(config.stellar.sorobanRpcUrl);
+
+  // Get the XLM SAC (Stellar Asset Contract) for native XLM
+  const xlmAsset = StellarSdk.Asset.native();
+  const xlmContractId = xlmAsset.contractId(config.networkPassphrase);
+  const xlmContract = new StellarSdk.Contract(xlmContractId);
+
+  // Convert amount to stroops (1 XLM = 10^7 stroops)
+  const stroops = Math.floor(parseFloat(amount) * 10000000);
+
+  // Get the source account (classic account sponsors the transaction)
+  const sourceAccount = await rpcServer.getAccount(publicKey);
+
+  // Build the transfer operation
+  // The contract account (from) needs to authorize this via __check_auth
+  const fromAddress = new StellarSdk.Address(contractAddress);
+  const toAddress = new StellarSdk.Address(destination);
+
+  let transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
+    fee: '10000',
+    networkPassphrase: config.networkPassphrase,
+  })
+    .addOperation(
+      xlmContract.call(
+        'transfer',
+        fromAddress.toScVal(),
+        toAddress.toScVal(),
+        StellarSdk.nativeToScVal(stroops, { type: 'i128' })
+      )
+    )
+    .setTimeout(30)
+    .build();
+
+  // Simulate to get auth entries and resource requirements
+  const simResult = await rpcServer.simulateTransaction(transaction);
+
+  if (!StellarSdk.rpc.Api.isSimulationSuccess(simResult)) {
+    throw new Error('Transaction simulation failed');
+  }
+
+  // Get auth entries from simulation result
+  const authEntries = simResult.result?.auth || [];
+  const signedAuthEntries = [];
+
+  // Signature expiration: ~5 minutes from now (60 ledgers at 5s each)
+  const latestLedger = simResult.latestLedger;
+  const validUntilLedger = latestLedger + 60;
+
+  // Compute network ID hash for preimage construction
+  const networkIdHash = StellarSdk.hash(Buffer.from(config.networkPassphrase));
+
+  // Sign each auth entry that requires address credentials
+  for (let i = 0; i < authEntries.length; i++) {
+    const authEntry = authEntries[i];
+
+    // Auth entries from simulation may be objects or XDR strings
+    let auth;
+    if (typeof authEntry === 'string') {
+      auth = StellarSdk.xdr.SorobanAuthorizationEntry.fromXDR(authEntry, 'base64');
+    } else if (authEntry instanceof StellarSdk.xdr.SorobanAuthorizationEntry) {
+      auth = authEntry;
+    } else if (authEntry.toXDR) {
+      auth = authEntry;
+    } else {
+      throw new Error('Unknown auth entry format');
+    }
+
+    if (auth.credentials().switch().name === 'sorobanCredentialsAddress') {
+      const addressCreds = auth.credentials().address();
+      const nonce = addressCreds.nonce();
+
+      // Build the HashIdPreimage for Soroban authorization
+      // IMPORTANT: Use our validUntilLedger, not the simulation's (which may be 0)
+      const preimage = StellarSdk.xdr.HashIdPreimage.envelopeTypeSorobanAuthorization(
+        new StellarSdk.xdr.HashIdPreimageSorobanAuthorization({
+          networkId: networkIdHash,
+          nonce: nonce,
+          signatureExpirationLedger: validUntilLedger,
+          invocation: auth.rootInvocation(),
+        })
+      );
+
+      // Hash the preimage and sign with ed25519
+      const preimageXdr = preimage.toXDR();
+      const payload = StellarSdk.hash(preimageXdr);
+      const signature = keypair.sign(payload);
+
+      // Create signed auth entry with raw 64-byte signature
+      // Our simple_account contract expects BytesN<64> for the signature
+      const signatureScVal = StellarSdk.nativeToScVal(signature, { type: 'bytes' });
+
+      const newAddressCreds = new StellarSdk.xdr.SorobanAddressCredentials({
+        address: addressCreds.address(),
+        nonce: nonce,
+        signatureExpirationLedger: validUntilLedger,
+        signature: signatureScVal,
+      });
+
+      const signedAuth = new StellarSdk.xdr.SorobanAuthorizationEntry({
+        credentials: StellarSdk.xdr.SorobanCredentials.sorobanCredentialsAddress(newAddressCreds),
+        rootInvocation: auth.rootInvocation(),
+      });
+      signedAuthEntries.push(signedAuth);
+    } else {
+      signedAuthEntries.push(auth);
+    }
+  }
+
+  // Assemble with the ORIGINAL simulation result (not a new one!)
+  // Re-simulating would generate new auth entries with different nonces,
+  // invalidating our signatures
+  transaction = StellarSdk.rpc.assembleTransaction(transaction, simResult).build();
+
+  // Replace auth entries with our signed versions
+  // We need to work at the XDR level since Transaction is immutable
+  const txXdr = transaction.toXDR();
+  const txEnvelope = StellarSdk.xdr.TransactionEnvelope.fromXDR(txXdr, 'base64');
+  const innerTx = txEnvelope.v1().tx();
+  const ops = innerTx.operations();
+
+  if (ops.length > 0 && ops[0].body().switch().name === 'invokeHostFunction') {
+    const invokeOp = ops[0].body().invokeHostFunctionOp();
+    invokeOp.auth(signedAuthEntries);
+  }
+
+  // Bump up the instruction limit to account for __check_auth execution
+  // The simulation didn't include the cost of ed25519 signature verification
+  // in the custom account contract (requires ~1M additional instructions)
+  const sorobanData = innerTx.ext().sorobanData();
+  const resources = sorobanData.resources();
+  const currentInstructions = resources.instructions();
+  resources.instructions(currentInstructions + 1000000);
+
+  // Create new transaction from modified XDR
+  transaction = new StellarSdk.Transaction(txEnvelope, config.networkPassphrase);
+
+  // Sign the transaction envelope (source account signature)
+  transaction.sign(keypair);
+
+  // Submit transaction
+  const response = await rpcServer.sendTransaction(transaction);
+
+  // Wait for confirmation
+  if (response.status === 'PENDING') {
+    const maxAttempts = 10;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      const getResponse = await rpcServer.getTransaction(response.hash);
+
+      if (getResponse.status === 'SUCCESS') {
+        return getResponse;
+      } else if (getResponse.status === 'FAILED') {
+        console.error('Transaction FAILED:', JSON.stringify(getResponse, null, 2));
+        throw new Error(`Transaction failed: ${getResponse.resultXdr || getResponse.status}`);
+      }
+    }
+    throw new Error('Transaction timed out waiting for confirmation');
+  }
+
+  return response;
+}
