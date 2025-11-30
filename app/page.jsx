@@ -13,7 +13,7 @@ import {
   buildSACTransfer,
   deriveContractAddress,
   sendFromContractAccount
-} from '@/utils/stellar';
+} from '@/utils/stellar/index';
 import WalletDashboard from '@/components/WalletDashboard';
 import './App.css';
 

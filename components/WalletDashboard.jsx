@@ -5,7 +5,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { MuxedAccount } from '@stellar/stellar-sdk';
 import config from '../utils/config';
-import { getContractTTLs, getTransferHistory, getMnemonic, bumpInstanceTTL, bumpCodeTTL, bumpBalanceTTL } from '../utils/stellar';
+import { getContractTTLs, getTransferHistory, getMnemonic, bumpInstanceTTL, bumpCodeTTL, bumpBalanceTTL } from '../utils/stellar/index';
 import './WalletDashboard.css';
 
 function WalletDashboard({
