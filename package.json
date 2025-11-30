@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
+    "dev": "eval $(node scripts/compute-wasm-hash.js) && next dev",
+    "build": "eval $(node scripts/compute-wasm-hash.js) && next build",
+    "start": "eval $(node scripts/compute-wasm-hash.js) && next start",
     "lint": "eslint"
   },
   "dependencies": {

@@ -40,5 +40,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# rust build artifacts
+# rust build artifacts (but keep compiled WASM in out/)
 **/target/
+!contracts/**/out/
