@@ -174,15 +174,8 @@ function WalletDashboard({
       setDestMuxedId('');
       setShowSend(false);
 
-      // Refresh both balances every second for 5 seconds after sending
-      let count = 0;
-      const intervalId = setInterval(() => {
-        count++;
-        onRefreshBalances();
-        if (count >= 5) {
-          clearInterval(intervalId);
-        }
-      }, 1000);
+      // Refresh balances after successful send
+      onRefreshBalances();
     } catch (error) {
       // Error already handled in parent
     } finally {
@@ -201,15 +194,8 @@ function WalletDashboard({
       setClassicDestMuxedId('');
       setShowClassicSend(false);
 
-      // Refresh both balances every second for 5 seconds after sending
-      let count = 0;
-      const intervalId = setInterval(() => {
-        count++;
-        onRefreshBalances();
-        if (count >= 5) {
-          clearInterval(intervalId);
-        }
-      }, 1000);
+      // Refresh balances after successful send
+      onRefreshBalances();
     } catch (error) {
       // Error already handled in parent
     } finally {

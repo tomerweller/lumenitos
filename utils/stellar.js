@@ -129,17 +129,19 @@ export async function buildSACTransfer(destination, amount) {
 
   // Wait for the transaction to be confirmed
   if (response.status === 'PENDING') {
-    let getResponse = await rpcServer.getTransaction(response.hash);
-    while (getResponse.status === 'NOT_FOUND') {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      getResponse = await rpcServer.getTransaction(response.hash);
-    }
+    const maxAttempts = 10;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      const getResponse = await rpcServer.getTransaction(response.hash);
 
-    if (getResponse.status === 'SUCCESS') {
-      return getResponse;
-    } else {
-      throw new Error(`Transaction failed: ${getResponse.status}`);
+      if (getResponse.status === 'SUCCESS') {
+        return getResponse;
+      } else if (getResponse.status === 'FAILED') {
+        throw new Error(`Transaction failed: ${getResponse.status}`);
+      }
+      // status is NOT_FOUND, keep polling
     }
+    throw new Error('Transaction timed out waiting for confirmation');
   }
 
   return response;

@@ -136,11 +136,11 @@ export async function getTransactionStatus(locator, transactionId) {
  * Wait for a transaction to complete (success or failed)
  * @param {string} locator - Wallet locator
  * @param {string} transactionId - Transaction ID
- * @param {number} maxAttempts - Maximum polling attempts (default 30)
+ * @param {number} maxAttempts - Maximum polling attempts (default 10)
  * @param {number} intervalMs - Polling interval in ms (default 2000)
  * @returns {Promise<object>} The final transaction status
  */
-export async function waitForTransaction(locator, transactionId, maxAttempts = 30, intervalMs = 2000) {
+export async function waitForTransaction(locator, transactionId, maxAttempts = 10, intervalMs = 2000) {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const tx = await getTransactionStatus(locator, transactionId);
 
