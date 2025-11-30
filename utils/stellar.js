@@ -492,6 +492,235 @@ export async function getContractTTLs(contractAddress) {
   }
 }
 
+// Maximum TTL extension (about 35 days at 5s/ledger)
+const MAX_TTL_EXTENSION = 500000;
+
+/**
+ * Bump the TTL of the contract instance to maximum
+ * @param {string} contractAddress - The contract address (C...)
+ * @returns {Promise<object>} The transaction result
+ */
+export async function bumpInstanceTTL(contractAddress) {
+  const keypair = getStoredKeypair();
+  if (!keypair) {
+    throw new Error('No keypair found in storage');
+  }
+
+  const rpcServer = new StellarSdk.rpc.Server(config.stellar.sorobanRpcUrl);
+  const publicKey = keypair.publicKey();
+  const contractId = StellarSdk.StrKey.decodeContract(contractAddress);
+
+  // Build the instance ledger key
+  const instanceKey = StellarSdk.xdr.LedgerKey.contractData(
+    new StellarSdk.xdr.LedgerKeyContractData({
+      contract: StellarSdk.Address.contract(contractId).toScAddress(),
+      key: StellarSdk.xdr.ScVal.scvLedgerKeyContractInstance(),
+      durability: StellarSdk.xdr.ContractDataDurability.persistent()
+    })
+  );
+
+  const sourceAccount = await rpcServer.getAccount(publicKey);
+
+  // Build SorobanData with our footprint
+  const sorobanData = new StellarSdk.SorobanDataBuilder()
+    .setReadOnly([instanceKey])
+    .build();
+
+  let transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
+    fee: '10000',
+    networkPassphrase: config.networkPassphrase,
+  })
+    .addOperation(StellarSdk.Operation.extendFootprintTtl({
+      extendTo: MAX_TTL_EXTENSION,
+    }))
+    .setTimeout(300)
+    .setSorobanData(sorobanData)
+    .build();
+
+  // Use prepareTransaction which handles simulation and assembly
+  const preparedTransaction = await rpcServer.prepareTransaction(transaction);
+  preparedTransaction.sign(keypair);
+
+  const response = await rpcServer.sendTransaction(preparedTransaction);
+  if (response.status === 'ERROR') {
+    throw new Error(`Transaction failed: ${JSON.stringify(response.errorResult) || 'Unknown error'}`);
+  }
+
+  // Wait for confirmation
+  let getResponse = await rpcServer.getTransaction(response.hash);
+  while (getResponse.status === 'NOT_FOUND') {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    getResponse = await rpcServer.getTransaction(response.hash);
+  }
+
+  if (getResponse.status === 'FAILED') {
+    throw new Error(`Transaction failed: ${getResponse.status}`);
+  }
+
+  return getResponse;
+}
+
+/**
+ * Bump the TTL of the contract code (WASM) to maximum
+ * @param {string} contractAddress - The contract address (C...)
+ * @returns {Promise<object>} The transaction result
+ */
+export async function bumpCodeTTL(contractAddress) {
+  const keypair = getStoredKeypair();
+  if (!keypair) {
+    throw new Error('No keypair found in storage');
+  }
+
+  const rpcServer = new StellarSdk.rpc.Server(config.stellar.sorobanRpcUrl);
+  const publicKey = keypair.publicKey();
+  const contractId = StellarSdk.StrKey.decodeContract(contractAddress);
+
+  // First, get the WASM hash from the contract instance
+  const instanceKey = StellarSdk.xdr.LedgerKey.contractData(
+    new StellarSdk.xdr.LedgerKeyContractData({
+      contract: StellarSdk.Address.contract(contractId).toScAddress(),
+      key: StellarSdk.xdr.ScVal.scvLedgerKeyContractInstance(),
+      durability: StellarSdk.xdr.ContractDataDurability.persistent()
+    })
+  );
+
+  const instanceResponse = await rpcServer.getLedgerEntries(instanceKey);
+  if (!instanceResponse.entries || instanceResponse.entries.length === 0) {
+    throw new Error('Contract instance not found');
+  }
+
+  const instanceData = instanceResponse.entries[0].val.contractData();
+  const instanceVal = instanceData.val();
+  if (instanceVal.switch().name !== 'scvContractInstance') {
+    throw new Error('Invalid contract instance');
+  }
+
+  const executable = instanceVal.instance().executable();
+  if (executable.switch().name !== 'contractExecutableWasm') {
+    throw new Error('Contract is not WASM-based');
+  }
+
+  const wasmHash = executable.wasmHash();
+
+  // Build the code ledger key
+  const codeKey = StellarSdk.xdr.LedgerKey.contractCode(
+    new StellarSdk.xdr.LedgerKeyContractCode({
+      hash: wasmHash
+    })
+  );
+
+  const sourceAccount = await rpcServer.getAccount(publicKey);
+
+  // Build SorobanData with our footprint
+  const sorobanData = new StellarSdk.SorobanDataBuilder()
+    .setReadOnly([codeKey])
+    .build();
+
+  let transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
+    fee: '10000',
+    networkPassphrase: config.networkPassphrase,
+  })
+    .addOperation(StellarSdk.Operation.extendFootprintTtl({
+      extendTo: MAX_TTL_EXTENSION,
+    }))
+    .setTimeout(300)
+    .setSorobanData(sorobanData)
+    .build();
+
+  // Use prepareTransaction which handles simulation and assembly
+  const preparedTransaction = await rpcServer.prepareTransaction(transaction);
+  preparedTransaction.sign(keypair);
+
+  const response = await rpcServer.sendTransaction(preparedTransaction);
+  if (response.status === 'ERROR') {
+    throw new Error(`Transaction failed: ${JSON.stringify(response.errorResult) || 'Unknown error'}`);
+  }
+
+  let getResponse = await rpcServer.getTransaction(response.hash);
+  while (getResponse.status === 'NOT_FOUND') {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    getResponse = await rpcServer.getTransaction(response.hash);
+  }
+
+  if (getResponse.status === 'FAILED') {
+    throw new Error(`Transaction failed: ${getResponse.status}`);
+  }
+
+  return getResponse;
+}
+
+/**
+ * Bump the TTL of the XLM balance entry in the SAC to maximum
+ * @param {string} contractAddress - The contract address (C...)
+ * @returns {Promise<object>} The transaction result
+ */
+export async function bumpBalanceTTL(contractAddress) {
+  const keypair = getStoredKeypair();
+  if (!keypair) {
+    throw new Error('No keypair found in storage');
+  }
+
+  const rpcServer = new StellarSdk.rpc.Server(config.stellar.sorobanRpcUrl);
+  const publicKey = keypair.publicKey();
+  const contractId = StellarSdk.StrKey.decodeContract(contractAddress);
+
+  // Get the XLM SAC contract ID
+  const xlmAsset = StellarSdk.Asset.native();
+  const xlmContractId = xlmAsset.contractId(config.networkPassphrase);
+  const xlmContractIdBytes = StellarSdk.StrKey.decodeContract(xlmContractId);
+
+  // Build the balance ledger key
+  const balanceKey = StellarSdk.xdr.LedgerKey.contractData(
+    new StellarSdk.xdr.LedgerKeyContractData({
+      contract: StellarSdk.Address.contract(xlmContractIdBytes).toScAddress(),
+      key: StellarSdk.xdr.ScVal.scvVec([
+        StellarSdk.xdr.ScVal.scvSymbol('Balance'),
+        StellarSdk.Address.contract(contractId).toScVal()
+      ]),
+      durability: StellarSdk.xdr.ContractDataDurability.persistent()
+    })
+  );
+
+  const sourceAccount = await rpcServer.getAccount(publicKey);
+
+  // Build SorobanData with our footprint
+  const sorobanData = new StellarSdk.SorobanDataBuilder()
+    .setReadOnly([balanceKey])
+    .build();
+
+  let transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
+    fee: '10000',
+    networkPassphrase: config.networkPassphrase,
+  })
+    .addOperation(StellarSdk.Operation.extendFootprintTtl({
+      extendTo: MAX_TTL_EXTENSION,
+    }))
+    .setTimeout(300)
+    .setSorobanData(sorobanData)
+    .build();
+
+  // Use prepareTransaction which handles simulation and assembly
+  const preparedTransaction = await rpcServer.prepareTransaction(transaction);
+  preparedTransaction.sign(keypair);
+
+  const response = await rpcServer.sendTransaction(preparedTransaction);
+  if (response.status === 'ERROR') {
+    throw new Error(`Transaction failed: ${JSON.stringify(response.errorResult) || 'Unknown error'}`);
+  }
+
+  let getResponse = await rpcServer.getTransaction(response.hash);
+  while (getResponse.status === 'NOT_FOUND') {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    getResponse = await rpcServer.getTransaction(response.hash);
+  }
+
+  if (getResponse.status === 'FAILED') {
+    throw new Error(`Transaction failed: ${getResponse.status}`);
+  }
+
+  return getResponse;
+}
+
 /**
  * Sign a message with the stored keypair
  * @param {string} message - Base64-encoded message to sign

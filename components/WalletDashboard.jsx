@@ -5,7 +5,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { MuxedAccount } from '@stellar/stellar-sdk';
 import config from '../utils/config';
-import { getContractTTLs, getTransferHistory, getMnemonic } from '../utils/stellar';
+import { getContractTTLs, getTransferHistory, getMnemonic, bumpInstanceTTL, bumpCodeTTL, bumpBalanceTTL } from '../utils/stellar';
 import './WalletDashboard.css';
 
 function WalletDashboard({
@@ -34,6 +34,9 @@ function WalletDashboard({
   const [showTTLs, setShowTTLs] = useState(false);
   const [ttlData, setTtlData] = useState(null);
   const [loadingTTLs, setLoadingTTLs] = useState(false);
+  const [bumpingInstance, setBumpingInstance] = useState(false);
+  const [bumpingCode, setBumpingCode] = useState(false);
+  const [bumpingBalance, setBumpingBalance] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showClassicHistory, setShowClassicHistory] = useState(false);
   const [showExport, setShowExport] = useState(false);
@@ -243,6 +246,61 @@ function WalletDashboard({
       setTtlData({ error: error.message });
     } finally {
       setLoadingTTLs(false);
+    }
+  };
+
+  const refreshTTLs = async () => {
+    setLoadingTTLs(true);
+    try {
+      const data = await getContractTTLs(walletAddress);
+      setTtlData(data);
+    } catch (error) {
+      console.error('Error fetching TTLs:', error);
+      setTtlData({ error: error.message });
+    } finally {
+      setLoadingTTLs(false);
+    }
+  };
+
+  const handleBumpInstance = async (e) => {
+    e.preventDefault();
+    setBumpingInstance(true);
+    try {
+      await bumpInstanceTTL(walletAddress);
+      await refreshTTLs();
+    } catch (error) {
+      console.error('Error bumping instance TTL:', error);
+      alert(`Failed to bump instance TTL: ${error.message}`);
+    } finally {
+      setBumpingInstance(false);
+    }
+  };
+
+  const handleBumpCode = async (e) => {
+    e.preventDefault();
+    setBumpingCode(true);
+    try {
+      await bumpCodeTTL(walletAddress);
+      await refreshTTLs();
+    } catch (error) {
+      console.error('Error bumping code TTL:', error);
+      alert(`Failed to bump code TTL: ${error.message}`);
+    } finally {
+      setBumpingCode(false);
+    }
+  };
+
+  const handleBumpBalance = async (e) => {
+    e.preventDefault();
+    setBumpingBalance(true);
+    try {
+      await bumpBalanceTTL(walletAddress);
+      await refreshTTLs();
+    } catch (error) {
+      console.error('Error bumping balance TTL:', error);
+      alert(`Failed to bump balance TTL: ${error.message}`);
+    } finally {
+      setBumpingBalance(false);
     }
   };
 
@@ -678,9 +736,24 @@ function WalletDashboard({
             ) : ttlData ? (
               <>
                 <p>current ledger: {ttlData.currentLedger}</p>
-                <p>instance: {ttlData.instance ? `${ttlData.instance} (${ttlData.instance - ttlData.currentLedger} remaining)` : 'n/a'}</p>
-                <p>code (wasm): {ttlData.code ? `${ttlData.code} (${ttlData.code - ttlData.currentLedger} remaining)` : 'n/a'}</p>
-                <p>xlm balance: {ttlData.balance ? `${ttlData.balance} (${ttlData.balance - ttlData.currentLedger} remaining)` : 'n/a'}</p>
+                <p>
+                  instance: {ttlData.instance || 'n/a'}
+                  {ttlData.instance && (
+                    <><br />{ttlData.instance - ttlData.currentLedger} remaining (<a href="#" onClick={handleBumpInstance}>{bumpingInstance ? 'bumping...' : 'bump'}</a>)</>
+                  )}
+                </p>
+                <p>
+                  code (wasm): {ttlData.code || 'n/a'}
+                  {ttlData.code && (
+                    <><br />{ttlData.code - ttlData.currentLedger} remaining (<a href="#" onClick={handleBumpCode}>{bumpingCode ? 'bumping...' : 'bump'}</a>)</>
+                  )}
+                </p>
+                <p>
+                  xlm balance: {ttlData.balance || 'n/a'}
+                  {ttlData.balance && (
+                    <><br />{ttlData.balance - ttlData.currentLedger} remaining (<a href="#" onClick={handleBumpBalance}>{bumpingBalance ? 'bumping...' : 'bump'}</a>)</>
+                  )}
+                </p>
               </>
             ) : null}
 

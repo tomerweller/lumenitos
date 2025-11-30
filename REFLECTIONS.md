@@ -327,6 +327,104 @@ async function sendFromContractAccount(destination, amount) {
 }
 ```
 
+## Challenge 9: TTL Extension with extendFootprintTtl
+
+### The Problem
+
+Implementing TTL (Time-To-Live) extension for contract entries seemed straightforward - build a transaction with `extendFootprintTtl` operation, simulate, assemble, submit. However, the operation consistently failed with `extendFootprintTtlMalformed` error.
+
+### Investigation
+
+The `extendFootprintTtlMalformed` error occurs when:
+1. The footprint is empty, OR
+2. The `extendTo` value is invalid
+
+We tried multiple approaches:
+- Using `assembleTransaction` directly (footprint was being cleared/modified)
+- Manually rebuilding the transaction with simulation's resource values
+- Using `SorobanDataBuilder.setResources()` (API mismatch errors)
+- Setting footprint via `simResult.transactionData.setReadOnly()` (still malformed)
+
+### The Root Cause
+
+The issue was **not** with the footprint handling - it was with the `extendTo` value. We initially used `MAX_TTL_EXTENSION = 3,110,400` ledgers (~6 months) based on theoretical Stellar network limits.
+
+However, the actual maximum allowed value on testnet is significantly lower. When `extendTo` exceeds network-allowed limits, the operation is rejected as malformed.
+
+### The Fix
+
+Reduced `MAX_TTL_EXTENSION` to 500,000 ledgers (~35 days at 5s/ledger):
+
+```javascript
+// Maximum TTL extension (about 35 days at 5s/ledger)
+const MAX_TTL_EXTENSION = 500000;
+```
+
+The final working implementation uses `prepareTransaction` which handles simulation and assembly correctly:
+
+```javascript
+const sorobanData = new StellarSdk.SorobanDataBuilder()
+  .setReadOnly([ledgerKey])
+  .build();
+
+let transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
+  fee: '10000',
+  networkPassphrase,
+})
+  .addOperation(StellarSdk.Operation.extendFootprintTtl({
+    extendTo: MAX_TTL_EXTENSION,
+  }))
+  .setTimeout(300)
+  .setSorobanData(sorobanData)
+  .build();
+
+// prepareTransaction handles simulation and assembly correctly
+const preparedTransaction = await rpcServer.prepareTransaction(transaction);
+preparedTransaction.sign(keypair);
+await rpcServer.sendTransaction(preparedTransaction);
+```
+
+### Key Lessons
+
+1. **Network limits vary** - The theoretical maximum TTL (~3M ledgers) may not be allowed by the actual network configuration
+2. **Error messages are misleading** - "malformed" suggests a format issue, but can actually mean invalid parameter values
+3. **Use `prepareTransaction`** - It correctly handles simulation, assembly, and footprint management in one step
+4. **Test with smaller values first** - When debugging, try significantly reduced values to isolate the issue
+
+### Note on LedgerKey Construction
+
+Building ledger keys for TTL extension requires careful XDR construction:
+
+```javascript
+// Contract instance key
+const instanceKey = StellarSdk.xdr.LedgerKey.contractData(
+  new StellarSdk.xdr.LedgerKeyContractData({
+    contract: StellarSdk.Address.contract(contractIdBytes).toScAddress(),
+    key: StellarSdk.xdr.ScVal.scvLedgerKeyContractInstance(),
+    durability: StellarSdk.xdr.ContractDataDurability.persistent()
+  })
+);
+
+// Contract code (WASM) key - requires getting WASM hash from instance first
+const codeKey = StellarSdk.xdr.LedgerKey.contractCode(
+  new StellarSdk.xdr.LedgerKeyContractCode({
+    hash: wasmHash // Get from instance.executable().wasmHash()
+  })
+);
+
+// Token balance key (in SAC)
+const balanceKey = StellarSdk.xdr.LedgerKey.contractData(
+  new StellarSdk.xdr.LedgerKeyContractData({
+    contract: StellarSdk.Address.contract(xlmContractIdBytes).toScAddress(),
+    key: StellarSdk.xdr.ScVal.scvVec([
+      StellarSdk.xdr.ScVal.scvSymbol('Balance'),
+      StellarSdk.Address.contract(holderContractId).toScVal()
+    ]),
+    durability: StellarSdk.xdr.ContractDataDurability.persistent()
+  })
+);
+```
+
 ## Conclusion
 
 Implementing a custom contract account in Stellar requires deep understanding of:
