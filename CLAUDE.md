@@ -76,6 +76,13 @@ If a feature required non-trivial time and debugging to implement:
 - Note any gaps or misleading information in official documentation
 - Help improve understanding for future development and debugging
 
+### Stellar Tooling Challenges
+Document all Stellar SDK, Soroban, and related tooling/documentation challenges in `REFLECTIONS.md`. This includes:
+- SDK limitations or unexpected behavior
+- Missing or misleading documentation
+- Workarounds for common issues
+- Non-obvious implementation patterns (e.g., custom account auth signing)
+
 ## Security Notes
 - This is an experimental wallet - not production ready
 - Private keys stored in localStorage (not secure)
