@@ -228,6 +228,7 @@ lumenitos/
 | `NEXT_PUBLIC_STELLAR_SOROBAN_RPC_URL` | Soroban RPC endpoint | No (default: testnet RPC) |
 | `NEXT_PUBLIC_STELLAR_FRIENDBOT_URL` | Friendbot URL for testnet funding | No (default: testnet Friendbot) |
 | `NEXT_PUBLIC_STELLAR_EXPLORER_URL` | Block explorer URL | No (default: stellar.expert testnet) |
+| `STELLAR_WASM_ADMIN_SECRET` | Server-side Stellar secret for WASM lifecycle (install/restore/TTL bump) | No (WASM auto-management disabled if not set) |
 
 ## Deployment
 
