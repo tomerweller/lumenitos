@@ -2,12 +2,14 @@
  * Unit tests for helper functions
  */
 
+import * as StellarSdk from '@stellar/stellar-sdk';
 import {
   stroopsToXlm,
   xlmToStroops,
   formatXlmBalance,
   deriveContractAddress,
   deriveContractSalt,
+  scValToAmount,
 } from '@/utils/stellar/helpers';
 
 // Known test values - valid Stellar public key
@@ -114,6 +116,52 @@ describe('Helpers', () => {
       const address1 = deriveContractAddress(TEST_PUBLIC_KEY);
       const address2 = deriveContractAddress(otherKey);
       expect(address1).not.toBe(address2);
+    });
+  });
+
+  describe('scValToAmount', () => {
+    it('extracts amount from simple i128 ScVal', () => {
+      const stroops = 100000000n; // 10 XLM
+      const scVal = StellarSdk.nativeToScVal(stroops, { type: 'i128' });
+      expect(scValToAmount(scVal)).toBe(stroops);
+    });
+
+    it('extracts amount from zero i128', () => {
+      const scVal = StellarSdk.nativeToScVal(0n, { type: 'i128' });
+      expect(scValToAmount(scVal)).toBe(0n);
+    });
+
+    it('extracts amount from large i128', () => {
+      const stroops = 1000000000000000n; // 100M XLM
+      const scVal = StellarSdk.nativeToScVal(stroops, { type: 'i128' });
+      expect(scValToAmount(scVal)).toBe(stroops);
+    });
+
+    it('extracts amount from SEP-0041 muxed transfer map (u64 muxed id)', () => {
+      // Per SEP-0041, muxed transfers have event value: { amount: i128, to_muxed_id: u64 }
+      const stroops = 100000000n; // 10 XLM
+      const muxedId = 12345n;
+      const scVal = StellarSdk.nativeToScVal(
+        { amount: stroops, to_muxed_id: muxedId },
+        { type: { amount: ['symbol', 'i128'], to_muxed_id: ['symbol', 'u64'] } }
+      );
+      expect(scValToAmount(scVal)).toBe(stroops);
+    });
+
+    it('extracts amount from SEP-0041 map without muxed id (void)', () => {
+      // When no muxed id, to_muxed_id may be absent or void
+      const stroops = 50000000n; // 5 XLM
+      const scVal = StellarSdk.nativeToScVal(
+        { amount: stroops },
+        { type: { amount: ['symbol', 'i128'] } }
+      );
+      expect(scValToAmount(scVal)).toBe(stroops);
+    });
+
+    it('returns 0n for unrecognized format', () => {
+      // A string ScVal should return 0n since it's not an amount
+      const scVal = StellarSdk.nativeToScVal('not_an_amount', { type: 'string' });
+      expect(scValToAmount(scVal)).toBe(0n);
     });
   });
 });

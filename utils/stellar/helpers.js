@@ -197,13 +197,18 @@ export function scValToAddress(scVal) {
 }
 
 /**
- * Extract amount from ScVal (i128)
+ * Extract amount from ScVal (i128 or map with amount field per SEP-0041)
+ * When muxed IDs are used, the value is a map: { amount: i128, to_muxed_id: ... }
  * @param {StellarSdk.xdr.ScVal} scVal - The ScVal
  * @returns {bigint} The amount
  */
 export function scValToAmount(scVal) {
   try {
     const native = StellarSdk.scValToNative(scVal);
+    // If it's a map (muxed transfer per SEP-0041), extract the amount field
+    if (native && typeof native === 'object' && 'amount' in native) {
+      return BigInt(native.amount);
+    }
     return BigInt(native);
   } catch {
     if (scVal.switch().name === 'scvI128') {
@@ -211,6 +216,16 @@ export function scValToAmount(scVal) {
       const hi = BigInt(parts.hi().toString());
       const lo = BigInt(parts.lo().toString());
       return (hi << 64n) | lo;
+    }
+    // Handle map case manually if scValToNative failed
+    if (scVal.switch().name === 'scvMap') {
+      const entries = scVal.map();
+      for (const entry of entries) {
+        const key = entry.key();
+        if (key.switch().name === 'scvSymbol' && key.sym().toString() === 'amount') {
+          return scValToAmount(entry.val());
+        }
+      }
     }
     return 0n;
   }

@@ -425,6 +425,78 @@ const balanceKey = StellarSdk.xdr.LedgerKey.contractData(
 );
 ```
 
+## Challenge 10: SEP-0041 Transfer Events with Muxed IDs
+
+### The Problem
+
+When parsing transfer history from SAC (Stellar Asset Contract) events, transfers to muxed addresses showed "0 XLM" instead of the actual amount. Regular transfers without muxed IDs displayed correctly.
+
+### Investigation
+
+The transfer event parsing code was:
+```javascript
+if (event.value) {
+  const stroops = scValToAmount(event.value);
+  amountXLM = stroopsToXlm(stroops);
+}
+```
+
+This assumed `event.value` was always an i128 amount. For regular transfers, this is true. But the amount was returning 0 for muxed transfers.
+
+### The Root Cause
+
+Per [SEP-0041](https://github.com/stellar/stellar-protocol/blob/master/ecosystem/sep-0041.md), when a transfer includes a muxed ID, the event value is a **map** instead of a simple i128:
+
+```
+{
+  amount: i128,           // The transfer amount
+  to_muxed_id: Option<u64 | String | BytesN<32>>  // The muxed ID
+}
+```
+
+The `scValToNative()` function was converting this to a JavaScript object, and `BigInt(object)` was returning 0n.
+
+### The Fix
+
+Updated `scValToAmount` in `utils/stellar/helpers.js` to handle both formats:
+
+```javascript
+export function scValToAmount(scVal) {
+  try {
+    const native = StellarSdk.scValToNative(scVal);
+    // If it's a map (muxed transfer per SEP-0041), extract the amount field
+    if (native && typeof native === 'object' && 'amount' in native) {
+      return BigInt(native.amount);
+    }
+    return BigInt(native);
+  } catch {
+    if (scVal.switch().name === 'scvI128') {
+      const parts = scVal.i128();
+      const hi = BigInt(parts.hi().toString());
+      const lo = BigInt(parts.lo().toString());
+      return (hi << 64n) | lo;
+    }
+    // Handle map case manually if scValToNative failed
+    if (scVal.switch().name === 'scvMap') {
+      const entries = scVal.map();
+      for (const entry of entries) {
+        const key = entry.key();
+        if (key.switch().name === 'scvSymbol' && key.sym().toString() === 'amount') {
+          return scValToAmount(entry.val());
+        }
+      }
+    }
+    return 0n;
+  }
+}
+```
+
+### Key Lessons
+
+1. **Read the SEPs** - SEP-0041 defines the standard token interface including event formats. The muxed ID handling is documented there.
+2. **Event data formats can vary** - Don't assume event values have a fixed format. Token events may include additional metadata.
+3. **Test with edge cases** - Muxed addresses are less common, so this bug only appeared when specifically testing muxed transfers.
+
 ## Conclusion
 
 Implementing a custom contract account in Stellar requires deep understanding of:
