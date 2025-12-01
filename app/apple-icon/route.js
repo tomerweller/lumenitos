@@ -3,7 +3,8 @@ import { join } from 'path';
 
 export async function GET() {
   const isTestnet = process.env.NEXT_PUBLIC_STELLAR_NETWORK !== 'mainnet';
-  const iconName = isTestnet ? 'icon-192-testnet.png' : 'icon-192.png';
+  // Use testnet icon with green dot, or mainnet icon with red dot
+  const iconName = isTestnet ? 'icon-192-testnet.png' : 'icon-192-mainnet.png';
   const iconPath = join(process.cwd(), 'public', iconName);
 
   const iconBuffer = readFileSync(iconPath);

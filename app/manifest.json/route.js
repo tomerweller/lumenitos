@@ -1,7 +1,8 @@
 export async function GET() {
   const isTestnet = process.env.NEXT_PUBLIC_STELLAR_NETWORK !== 'mainnet';
   const appName = isTestnet ? "Lumenitos (testnet)" : "Lumenitos";
-  const iconSuffix = isTestnet ? "-testnet" : "";
+  // Testnet: green dot icons, Mainnet: red dot icons
+  const iconSuffix = isTestnet ? "-testnet" : "-mainnet";
 
   const manifest = {
     name: appName,

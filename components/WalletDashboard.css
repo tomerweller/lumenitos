@@ -14,11 +14,18 @@
 
 .wallet-dashboard .network-label {
   display: inline-block;
-  background-color: #dc3545;
   color: white;
   padding: 0.2em 0.5em;
   font-size: 0.8em;
   margin: 0 0 0.5em 0;
+}
+
+.wallet-dashboard .network-label.testnet {
+  background-color: #28a745;
+}
+
+.wallet-dashboard .network-label.mainnet {
+  background-color: #dc3545;
 }
 
 .wallet-dashboard p {

@@ -1,29 +1,31 @@
 /**
- * Generate testnet icons with red dot indicator in bottom-left corner
+ * Generate network-specific icons with colored dot indicator in bottom-left corner
+ * - Testnet: green dot
+ * - Mainnet: red dot
  */
 
 const sharp = require('sharp');
 const path = require('path');
 
-async function addRedDot(inputPath, outputPath, size) {
+async function addDot(inputPath, outputPath, size, color) {
   const dotSize = Math.round(size * 0.25); // 25% of icon size
   const padding = Math.round(size * 0.08); // 8% padding from edge
 
-  // Create red dot SVG
-  const redDot = Buffer.from(`
+  // Create colored dot SVG
+  const dot = Buffer.from(`
     <svg width="${size}" height="${size}">
       <circle
         cx="${padding + dotSize/2}"
         cy="${size - padding - dotSize/2}"
         r="${dotSize/2}"
-        fill="#ff3b30"
+        fill="${color}"
       />
     </svg>
   `);
 
   await sharp(inputPath)
     .composite([{
-      input: redDot,
+      input: dot,
       top: 0,
       left: 0,
     }])
@@ -35,20 +37,40 @@ async function addRedDot(inputPath, outputPath, size) {
 async function main() {
   const publicDir = path.join(__dirname, '..', 'public');
 
-  // Generate testnet versions of PWA icons
-  await addRedDot(
+  const GREEN = '#28a745';  // Testnet
+  const RED = '#ff3b30';    // Mainnet
+
+  // Generate testnet icons (green dot)
+  await addDot(
     path.join(publicDir, 'icon-192.png'),
     path.join(publicDir, 'icon-192-testnet.png'),
-    192
+    192,
+    GREEN
   );
 
-  await addRedDot(
+  await addDot(
     path.join(publicDir, 'icon-512.png'),
     path.join(publicDir, 'icon-512-testnet.png'),
-    512
+    512,
+    GREEN
   );
 
-  console.log('Testnet icons generated successfully!');
+  // Generate mainnet icons (red dot)
+  await addDot(
+    path.join(publicDir, 'icon-192.png'),
+    path.join(publicDir, 'icon-192-mainnet.png'),
+    192,
+    RED
+  );
+
+  await addDot(
+    path.join(publicDir, 'icon-512.png'),
+    path.join(publicDir, 'icon-512-mainnet.png'),
+    512,
+    RED
+  );
+
+  console.log('Network icons generated successfully!');
 }
 
 main().catch(console.error);
