@@ -2,11 +2,13 @@
 
 A minimalist Stellar smart wallet built with Next.js and Soroban.
 
-**Live Demo:** https://lumenitos.vercel.app/ (testnet)
+**Live Demo:**
+- **Testnet:** https://lumenitos-testnet.vercel.app/
+- **Mainnet:** https://lumenitos.vercel.app/ ⚠️ **REAL FUNDS - USE AT YOUR OWN RISK**
 
 ## Overview
 
-Lumenitos is an experimental Stellar smart wallet that combines local key management with a custom Soroban contract account. It provides a simple, text-based interface for creating and managing Stellar wallets on testnet.
+Lumenitos is an experimental Stellar smart wallet that combines local key management with a custom Soroban contract account. It provides a simple, text-based interface for creating and managing Stellar wallets.
 
 ### Dual Account Architecture
 
