@@ -1,6 +1,7 @@
 export async function GET() {
   const isTestnet = process.env.NEXT_PUBLIC_STELLAR_NETWORK !== 'mainnet';
   const appName = isTestnet ? "Lumenitos (testnet)" : "Lumenitos";
+  const iconSuffix = isTestnet ? "-testnet" : "";
 
   const manifest = {
     name: appName,
@@ -13,13 +14,13 @@ export async function GET() {
     orientation: "portrait",
     icons: [
       {
-        src: "/icon-192.png",
+        src: `/icon-192${iconSuffix}.png`,
         sizes: "192x192",
         type: "image/png",
         purpose: "any maskable"
       },
       {
-        src: "/icon-512.png",
+        src: `/icon-512${iconSuffix}.png`,
         sizes: "512x512",
         type: "image/png",
         purpose: "any maskable"
