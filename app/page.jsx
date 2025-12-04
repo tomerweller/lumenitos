@@ -12,7 +12,9 @@ import {
   getContractBalance,
   buildSACTransfer,
   deriveContractAddress,
-  sendFromContractAccount
+  sendFromContractAccount,
+  isGaslessEnabled,
+  sendGaslessFromContract,
 } from '@/utils/stellar/index';
 import WalletDashboard from '@/components/WalletDashboard';
 import './App.css';
@@ -226,20 +228,25 @@ export default function Home() {
     }
   };
 
-  const handleSendXLM = async (destination, amount) => {
+  const handleSendXLM = async (destination, amount, { gasless = false } = {}) => {
     setLoading(true);
     setStatusMessage(null);
     try {
       // Send XLM from contract account (will deploy contract if needed)
-      await sendFromContractAccount(destination, amount);
-
-      console.log('Contract account transfer successful');
+      if (gasless && isGaslessEnabled()) {
+        await sendGaslessFromContract(destination, amount);
+        console.log('Gasless contract account transfer successful');
+      } else {
+        await sendFromContractAccount(destination, amount);
+        console.log('Contract account transfer successful');
+      }
 
       // Update balances after successful transaction
       await refreshBalances();
 
       // Show success message
-      setStatusMessage({ type: 'success', text: `Successfully sent ${amount} XLM!` });
+      const gaslessLabel = gasless ? ' (gasless)' : '';
+      setStatusMessage({ type: 'success', text: `Successfully sent ${amount} XLM${gaslessLabel}!` });
 
       // Auto-close after 2 seconds
       setTimeout(() => {
@@ -264,9 +271,9 @@ export default function Home() {
     setLoading(true);
     setStatusMessage(null);
     try {
-      // Use buildSACTransfer to send XLM from classic account
+      // Classic account transfers always pay their own fees
+      // (Gasless via OZ Channels requires contract account with address credentials)
       await buildSACTransfer(destination, amount);
-
       console.log('Classic account transfer successful');
 
       // Update balances after successful transaction
@@ -354,6 +361,7 @@ export default function Home() {
         loading={loading}
         creatingWallet={loading && !hasWallet}
         lastUpdated={lastUpdated}
+        gaslessEnabled={isGaslessEnabled()}
       />
       {loading && hasWallet && (
         <div className="loading-overlay">

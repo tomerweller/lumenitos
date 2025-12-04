@@ -12,6 +12,16 @@ const publicConfig = {
     explorerUrl: process.env.NEXT_PUBLIC_STELLAR_EXPLORER_URL || 'https://stellar.expert/explorer/testnet',
     simpleAccountWasmHash: process.env.NEXT_PUBLIC_SIMPLE_ACCOUNT_WASM_HASH,
   },
+  gasless: {
+    enabled: !!process.env.NEXT_PUBLIC_OZ_CHANNELS_API_KEY,
+    apiKey: process.env.NEXT_PUBLIC_OZ_CHANNELS_API_KEY,
+    // Use testnet or mainnet endpoint based on network
+    get baseUrl() {
+      return publicConfig.stellar.network === 'mainnet'
+        ? 'https://channels.openzeppelin.com'
+        : 'https://channels.openzeppelin.com/testnet';
+    },
+  },
   get networkPassphrase() {
     return this.stellar.network === 'mainnet'
       ? 'Public Global Stellar Network ; September 2015'

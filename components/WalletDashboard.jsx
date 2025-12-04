@@ -22,7 +22,8 @@ function WalletDashboard({
   onImportWallet,
   loading,
   creatingWallet,
-  lastUpdated
+  lastUpdated,
+  gaslessEnabled = false,
 }) {
   const [showSend, setShowSend] = useState(false);
   const [showClassicSend, setShowClassicSend] = useState(false);
@@ -56,6 +57,7 @@ function WalletDashboard({
   const [classicDestMuxedId, setClassicDestMuxedId] = useState('');
   const [sending, setSending] = useState(false);
   const [classicSending, setClassicSending] = useState(false);
+  const [useGasless, setUseGasless] = useState(gaslessEnabled);
   const [copied, setCopied] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [refreshed, setRefreshed] = useState(false);
@@ -178,7 +180,7 @@ function WalletDashboard({
     setSending(true);
     try {
       const finalDest = getMuxedDestination(destination, destMuxedId);
-      await onSendXLM(finalDest, amount);
+      await onSendXLM(finalDest, amount, { gasless: useGasless });
       setDestination('');
       setAmount('');
       setDestMuxedId('');
@@ -626,6 +628,20 @@ function WalletDashboard({
                 />
                 <small>available: {balance} xlm</small>
               </div>
+
+              {gaslessEnabled && (
+                <div className="form-group checkbox-group">
+                  <label>
+                    <input
+                      type="checkbox"
+                      checked={useGasless}
+                      onChange={(e) => setUseGasless(e.target.checked)}
+                      disabled={sending}
+                    />
+                    {' '}gasless (no fee)
+                  </label>
+                </div>
+              )}
 
               <p>
                 <a href="#" onClick={(e) => { e.preventDefault(); setShowSend(false); }}>cancel</a>

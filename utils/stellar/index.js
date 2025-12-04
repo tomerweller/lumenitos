@@ -99,3 +99,10 @@ export {
   scValToAddress,
   scValToAmount,
 } from './helpers';
+
+// Gasless transfers (OZ Channels)
+// Note: Only contract account transfers support gasless (address credentials required)
+export {
+  isGaslessEnabled,
+  sendGaslessFromContract,
+} from './gasless';

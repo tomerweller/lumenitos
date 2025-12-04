@@ -38,6 +38,7 @@ Both accounts can send and receive XLM independently, with balances fetched dire
   - View and extend contract TTLs (time-to-live) for instance, code, and balance entries
   - Fund testnet accounts via Friendbot
   - Progressive Web App (PWA) support for mobile
+- **Gasless Transactions** (optional): Fee-free contract account transfers via [OpenZeppelin Channels](https://docs.openzeppelin.com/relayer/1.2.x/plugins/channels)
 
 ## Architecture
 
@@ -177,7 +178,8 @@ lumenitos/
 │       ├── balance.js        # Balance queries
 │       ├── transfer.js       # Transfer operations
 │       ├── contract.js       # Contract deployment and auth
-│       └── ttl.js            # TTL management
+│       ├── ttl.js            # TTL management
+│       └── gasless.js        # Gasless transfers via OZ Channels
 ├── scripts/
 │   └── compute-wasm-hash.js  # Compute WASM hash at build time
 ├── __tests__/
@@ -228,7 +230,25 @@ lumenitos/
 | `NEXT_PUBLIC_STELLAR_SOROBAN_RPC_URL` | Soroban RPC endpoint | No (default: testnet RPC) |
 | `NEXT_PUBLIC_STELLAR_FRIENDBOT_URL` | Friendbot URL for testnet funding | No (default: testnet Friendbot) |
 | `NEXT_PUBLIC_STELLAR_EXPLORER_URL` | Block explorer URL | No (default: stellar.expert testnet) |
+| `NEXT_PUBLIC_OZ_CHANNELS_API_KEY` | OpenZeppelin Channels API key for gasless transactions | No (gasless disabled if not set) |
 | `STELLAR_WASM_ADMIN_SECRET` | Server-side Stellar secret for WASM lifecycle (install/restore/TTL bump) | No (WASM auto-management disabled if not set) |
+
+### Gasless Transactions Setup
+
+To enable gasless (fee-free) transactions using [OpenZeppelin Channels](https://docs.openzeppelin.com/relayer/1.1.x/guides/stellar-channels-guide):
+
+> **Important**: Gasless transfers only work for **contract account** (C...) sends, not classic account (G...) sends. This is because OZ Channels requires "address credentials" which only contract accounts provide.
+
+1. Get a free API key from:
+   - **Testnet**: https://channels.openzeppelin.com/testnet/gen
+   - **Mainnet**: https://channels.openzeppelin.com/gen
+
+2. Add to your `.env.local`:
+   ```
+   NEXT_PUBLIC_OZ_CHANNELS_API_KEY=your-api-key-here
+   ```
+
+3. When sending XLM from the **contract account**, check the "gasless (no fee)" checkbox to use fee-free transactions
 
 ## Deployment
 

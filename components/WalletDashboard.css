@@ -189,6 +189,20 @@
   font-size: 0.9em;
 }
 
+/* Checkbox group */
+.checkbox-group label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  color: var(--text-primary);
+}
+
+.checkbox-group input[type="checkbox"] {
+  width: auto;
+  margin-right: 8px;
+  cursor: pointer;
+}
+
 /* Scanner modal */
 .scanner-modal {
   padding: 20px;
