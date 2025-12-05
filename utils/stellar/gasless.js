@@ -2,9 +2,10 @@
  * Gasless transfer functions using OpenZeppelin Channels
  * Enables fee-free transactions via OZ's hosted relayer service
  *
- * IMPORTANT LIMITATION: OZ Channels requires "detached address credentials"
- * which means only CONTRACT ACCOUNTS (C...) can use gasless transfers.
- * Classic accounts (G...) use source-account credentials which are NOT supported.
+ * OZ Channels requires "detached address credentials" (sorobanCredentialsAddress).
+ * For contract accounts (C...), the simulation returns these credentials directly.
+ * For classic accounts (G...), we convert source-account credentials to address
+ * credentials by signing with ed25519.
  *
  * @see https://docs.openzeppelin.com/relayer/1.2.x/plugins/channels
  */
@@ -136,7 +137,10 @@ export async function deploySimpleAccountGasless({ rpcServer, keypair } = {}) {
 
 /**
  * Send XLM from classic account using gasless (OZ Channels)
- * Uses the Soroban function + auth method for optimal handling
+ *
+ * Classic accounts normally use source-account credentials, but OZ Channels
+ * requires detached address credentials. We convert the auth entry to use
+ * address credentials with ed25519 signature, just like contract accounts.
  *
  * @param {string} destination - Destination address (G... or C...)
  * @param {string} amount - Amount in XLM
@@ -178,33 +182,98 @@ export async function sendGaslessFromClassic(destination, amount, { rpcServer, k
     .setTimeout(30)
     .build();
 
-  // Simulate to get resource requirements
+  // Simulate to get resource requirements and the root invocation
   const simulation = await rpcServer.simulateTransaction(tx);
 
   if (!StellarSdk.rpc.Api.isSimulationSuccess(simulation)) {
     throw new Error('Transaction simulation failed');
   }
 
-  // Assemble the transaction
-  const assembled = StellarSdk.rpc.assembleTransaction(tx, simulation).build();
+  // Get the auth entry from simulation - it will have source account credentials
+  // We need to convert it to address credentials for OZ Channels
+  const simAuthEntries = simulation.result?.auth || [];
+  if (simAuthEntries.length === 0) {
+    throw new Error('No auth entries in simulation result');
+  }
 
-  // Convert to XDR to access the operation structure
+  const latestLedger = simulation.latestLedger;
+  const validUntilLedger = latestLedger + 60;
+  const networkIdHash = computeNetworkIdHash();
+
+  // Convert source account auth to address credentials with signature
+  const signedAuthEntries = [];
+  for (const authEntry of simAuthEntries) {
+    const auth = parseAuthEntry(authEntry);
+    const rootInvocation = auth.rootInvocation();
+
+    // Generate a random nonce (i64)
+    const nonce = StellarSdk.xdr.Int64.fromString(
+      Math.floor(Math.random() * Number.MAX_SAFE_INTEGER).toString()
+    );
+
+    // Build the HashIdPreimage for signing
+    const preimage = StellarSdk.xdr.HashIdPreimage.envelopeTypeSorobanAuthorization(
+      new StellarSdk.xdr.HashIdPreimageSorobanAuthorization({
+        networkId: networkIdHash,
+        nonce: nonce,
+        signatureExpirationLedger: validUntilLedger,
+        invocation: rootInvocation,
+      })
+    );
+
+    // Hash and sign with ed25519
+    const payload = StellarSdk.hash(preimage.toXDR());
+    const signature = keypair.sign(payload);
+
+    // For classic accounts (G...), the signature must be a Vec of AccountEd25519Signature structs
+    // Each struct has: public_key (BytesN<32>) and signature (BytesN<64>)
+    const pubKeyBytes = StellarSdk.StrKey.decodeEd25519PublicKey(sourceAddress);
+
+    // Create the AccountEd25519Signature struct as an ScMap
+    const accountSigStruct = StellarSdk.xdr.ScVal.scvMap([
+      new StellarSdk.xdr.ScMapEntry({
+        key: StellarSdk.xdr.ScVal.scvSymbol('public_key'),
+        val: StellarSdk.xdr.ScVal.scvBytes(pubKeyBytes),
+      }),
+      new StellarSdk.xdr.ScMapEntry({
+        key: StellarSdk.xdr.ScVal.scvSymbol('signature'),
+        val: StellarSdk.xdr.ScVal.scvBytes(signature),
+      }),
+    ]);
+
+    // Wrap in a Vec as required by the native account contract
+    const signatureScVal = StellarSdk.xdr.ScVal.scvVec([accountSigStruct]);
+
+    // Create address credentials with our signature
+    // For classic accounts, the address is the G... public key
+    const addressCreds = new StellarSdk.xdr.SorobanAddressCredentials({
+      address: fromAddress.toScAddress(),
+      nonce: nonce,
+      signatureExpirationLedger: validUntilLedger,
+      signature: signatureScVal,
+    });
+
+    const signedAuth = new StellarSdk.xdr.SorobanAuthorizationEntry({
+      credentials: StellarSdk.xdr.SorobanCredentials.sorobanCredentialsAddress(addressCreds),
+      rootInvocation: rootInvocation,
+    });
+
+    signedAuthEntries.push(signedAuth);
+  }
+
+  // Assemble the transaction to get the function
+  const assembled = StellarSdk.rpc.assembleTransaction(tx, simulation).build();
   const txXdr = assembled.toXDR();
   const txEnvelope = StellarSdk.xdr.TransactionEnvelope.fromXDR(txXdr, 'base64');
   const ops = txEnvelope.v1().tx().operations();
-
-  // Extract the invoke host function operation
   const invokeOp = ops[0].body().invokeHostFunctionOp();
 
   // Get the function XDR
   const func = invokeOp.hostFunction().toXDR('base64');
+  const auth = signedAuthEntries.map(a => a.toXDR('base64'));
 
-  // Get auth entries (should be source account auth for classic transfer)
-  const authEntries = invokeOp.auth() || [];
-  const auth = authEntries.map(a => a.toXDR('base64'));
-
-  // Submit via OZ Channels - they handle fee payment
-  console.log('Submitting gasless transaction to OZ Channels...');
+  // Submit via OZ Channels
+  console.log('Submitting gasless classic transfer to OZ Channels...');
   console.log('Base URL:', config.gasless.baseUrl);
   console.log('Func XDR length:', func.length);
   console.log('Auth entries count:', auth.length);

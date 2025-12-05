@@ -501,33 +501,67 @@ export function scValToAmount(scVal) {
 
 ### The Problem
 
-Integrating OpenZeppelin Channels for gasless (sponsored) transfers revealed an important limitation that wasn't immediately obvious from the documentation.
+Integrating OpenZeppelin Channels for gasless (sponsored) transfers revealed that both classic and contract accounts CAN work, but require different signature formats that weren't obvious from the documentation.
 
 ### Investigation
 
-We integrated the `@openzeppelin/relayer-plugin-channels` package to enable fee-free transactions via OZ's hosted relayer service. The initial implementation attempted to support both classic account and contract account transfers with a gasless option.
+We integrated the `@openzeppelin/relayer-plugin-channels` package to enable fee-free transactions via OZ's hosted relayer service.
 
-When testing:
-1. **Classic account transfers** failed with: "Detached address credentials required: source-account credentials are incompatible with relayer-managed channel accounts"
-2. **Contract account transfers** work correctly after signing the auth entries
+Initial testing revealed:
+1. **Contract account transfers** worked after signing the auth entries with raw ed25519 signatures
+2. **Classic account transfers** initially failed with: "Detached address credentials required: source-account credentials are incompatible with relayer-managed channel accounts"
+
+After fixing the auth to use detached credentials, classic accounts then failed with:
+- `Error(Auth, InvalidAction)` - "failed account authentication with error", `Error(Value, UnexpectedType)`
 
 ### The Root Cause
 
-OZ Channels requires **"detached address credentials"** which means:
-- The transfer must come from a **contract account** (C... address)
-- The auth entry must use `sorobanCredentialsAddress` credentials
-- Classic accounts use `sorobanCredentialsSourceAccount` which are NOT supported
+OZ Channels requires **"detached address credentials"** (`sorobanCredentialsAddress`) for all transfers. This is correct. However, **the signature format differs between classic and contract accounts**:
 
-This makes sense when you understand how OZ Channels works:
-1. They use their own "channel accounts" as the transaction source
-2. The user's signed auth entries are attached to authorize the contract invocation
-3. Classic account auth is tied to the transaction source, so it can't work with a different source account
+**For contract accounts (C...):**
+- Signature is raw `BytesN<64>` ed25519 signature bytes
+- The custom `__check_auth` function verifies this directly
+
+**For classic accounts (G...):**
+- Signature must be a `Vec<AccountEd25519Signature>` where each entry is a map:
+  ```rust
+  pub struct AccountEd25519Signature {
+      pub public_key: BytesN<32>,
+      pub signature: BytesN<64>,
+  }
+  ```
+- The native account contract expects this specific format per the Soroban authorization spec
+- Multiple signatures are supported for multisig accounts
+
+Our initial implementation used raw bytes for both account types. The fix was to wrap classic account signatures in the proper struct format:
+
+```javascript
+// For classic accounts (G...), wrap signature in AccountEd25519Signature struct
+const pubKeyBytes = StellarSdk.StrKey.decodeEd25519PublicKey(sourceAddress);
+
+const accountSigStruct = StellarSdk.xdr.ScVal.scvMap([
+  new StellarSdk.xdr.ScMapEntry({
+    key: StellarSdk.xdr.ScVal.scvSymbol('public_key'),
+    val: StellarSdk.xdr.ScVal.scvBytes(pubKeyBytes),
+  }),
+  new StellarSdk.xdr.ScMapEntry({
+    key: StellarSdk.xdr.ScVal.scvSymbol('signature'),
+    val: StellarSdk.xdr.ScVal.scvBytes(signature),
+  }),
+]);
+
+// Wrap in a Vec as required by the native account contract
+const signatureScVal = StellarSdk.xdr.ScVal.scvVec([accountSigStruct]);
+```
 
 ### The Solution
 
-1. Only enable gasless for contract account transfers
-2. Classic accounts must pay their own fees
-3. Document the limitation clearly in code comments
+Both classic AND contract accounts support gasless transfers! The key difference:
+
+1. **Contract accounts**: Use raw `BytesN<64>` signature in `SorobanAddressCredentials.signature`
+2. **Classic accounts**: Use `Vec<{public_key: BytesN<32>, signature: BytesN<64>}>` in the same field
+
+Both use `sorobanCredentialsAddress` (detached credentials) - the default `sorobanCredentialsSourceAccount` from simulation must be converted.
 
 ### Additional Capability: Gasless Contract Deployment
 
@@ -535,9 +569,10 @@ Since the factory contract's `create()` function doesn't require auth (anyone ca
 
 ### Key Lessons
 
-1. **Read error messages carefully** - "Detached address credentials required" was the key insight
-2. **Understand the relayer architecture** - OZ Channels uses their accounts as transaction source
-3. **Not all gasless solutions work for all account types** - the credential type matters
+1. **Both account types work with gasless** - the initial "source-account credentials" error just means you need to detach the auth entry
+2. **Signature formats differ by account type** - classic accounts use `Vec<AccountEd25519Signature>`, custom accounts define their own format
+3. **Read the Soroban auth spec** - the `AccountEd25519Signature` struct format is defined in CAP-0046 and the soroban-env source
+4. **Error messages guide you** - `Error(Value, UnexpectedType)` indicated the signature format was wrong, not the overall approach
 
 ## Challenge 12: Factory Pattern for Contract Account Deployment
 
