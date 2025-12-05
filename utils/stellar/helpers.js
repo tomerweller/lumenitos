@@ -147,18 +147,25 @@ export function deriveContractSalt(publicKey) {
 }
 
 /**
- * Derive deterministic contract address from public key
+ * Derive deterministic contract address from public key using the factory.
+ * The contract address is derived from the factory address + signer's public key bytes as salt.
  * @param {string} publicKey - The Stellar public key (G...)
  * @returns {string} The contract address (C...)
  */
 export function deriveContractAddress(publicKey) {
+  const factoryAddress = config.stellar.accountFactoryAddress;
+  if (!factoryAddress) {
+    throw new Error('Account factory address not configured');
+  }
+
   const salt = deriveContractSalt(publicKey);
   const preimage = StellarSdk.xdr.HashIdPreimage.envelopeTypeContractId(
     new StellarSdk.xdr.HashIdPreimageContractId({
       networkId: StellarSdk.hash(new TextEncoder().encode(config.networkPassphrase)),
       contractIdPreimage: StellarSdk.xdr.ContractIdPreimage.contractIdPreimageFromAddress(
         new StellarSdk.xdr.ContractIdPreimageFromAddress({
-          address: new StellarSdk.Address(publicKey).toScAddress(),
+          // Use the factory contract as the deployer, not the user's public key
+          address: new StellarSdk.Address(factoryAddress).toScAddress(),
           salt: salt,
         })
       ),

@@ -542,6 +542,49 @@ During testing, we also discovered deployment issues where:
 2. **Understand the relayer architecture** - OZ Channels uses their accounts as transaction source
 3. **Not all gasless solutions work for all account types** - the credential type matters
 
+## Challenge 12: Factory Pattern for Contract Account Deployment
+
+### The Problem
+
+Initially, each user deployed their own `simple_account` contract directly from their classic account (G...). The contract address was derived from the user's public key + salt, with the user as the "deployer". This meant:
+
+1. **Contract address derivation depended on the user's address** - changing how derivation works would break existing wallets
+2. **Each user needed enough XLM to pay for contract deployment** - deployment fees can be significant
+3. **No central point for upgrading the WASM** - each user deploys their own copy
+
+### The Solution
+
+We implemented an `account_factory` contract that deploys `simple_account` instances. Key changes:
+
+1. **Factory as deployer**: The factory contract is now the "deployer" address in the contract ID preimage. This means contract addresses are derived from `factory_address + user_public_key_as_salt`.
+
+2. **Deterministic addresses**: The `get_address(signer_bytes)` function allows computing the contract address without deploying, useful for UI display.
+
+3. **No authorization required**: The `create(owner_bytes)` function doesn't require auth. This is safe because only the private key holder can use the deployed contract, and enables gasless onboarding.
+
+```rust
+pub fn create(env: Env, owner_bytes: BytesN<32>) -> Address {
+    let wasm_hash = env.storage().instance().get(&symbol_short!("wasm")).unwrap();
+
+    env.deployer()
+        .with_current_contract(owner_bytes.clone())
+        .deploy_v2(wasm_hash, (owner_bytes,))
+}
+```
+
+### Key Insights
+
+1. **Contract address formula changes with deployer** - when moving to a factory, existing wallet addresses will change because the deployer is now the factory, not the user
+2. **Salt must be unique per user** - using the public key bytes as salt ensures one-contract-per-user
+3. **WASM hash stored in factory** - the factory stores which `simple_account` WASM to use, enabling future upgrades (deploy new factory with new WASM hash)
+
+### Future Possibilities
+
+With a factory pattern:
+- **Gasless onboarding**: The factory could be called via OZ Channels to deploy contracts without users paying fees
+- **WASM upgrades**: Deploy a new factory with an updated WASM hash
+- **Analytics**: The factory could emit events for all deployed accounts
+
 ## Conclusion
 
 Implementing a custom contract account in Stellar requires deep understanding of:

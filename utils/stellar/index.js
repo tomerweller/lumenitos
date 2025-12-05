@@ -82,6 +82,8 @@ export {
   bumpInstanceTTL,
   bumpCodeTTL,
   bumpBalanceTTL,
+  bumpFactoryInstanceTTL,
+  bumpFactoryCodeTTL,
 } from './ttl';
 
 // Helpers (commonly needed utilities)

@@ -36,7 +36,9 @@ export async function getContractTTLs(contractAddress, { rpcServer } = {}) {
       currentLedger: latestLedger,
       instance: null,
       code: null,
-      balance: null
+      balance: null,
+      factoryInstance: null,
+      factoryCode: null,
     };
 
     for (const entry of response.entries || []) {
@@ -67,6 +69,36 @@ export async function getContractTTLs(contractAddress, { rpcServer } = {}) {
         }
       } catch (e) {
         console.error('Error fetching code TTL:', e);
+      }
+    }
+
+    // Fetch factory instance TTL
+    const factoryAddress = config.stellar.accountFactoryAddress;
+    if (factoryAddress) {
+      try {
+        const factoryId = StellarSdk.StrKey.decodeContract(factoryAddress);
+        const factoryInstanceKey = buildInstanceLedgerKey(factoryId);
+        const factoryResponse = await rpcServer.getLedgerEntries(factoryInstanceKey);
+        if (factoryResponse.entries && factoryResponse.entries.length > 0) {
+          result.factoryInstance = factoryResponse.entries[0].liveUntilLedgerSeq;
+        }
+      } catch (e) {
+        console.error('Error fetching factory instance TTL:', e);
+      }
+    }
+
+    // Fetch factory code TTL
+    const factoryWasmHashHex = config.stellar.accountFactoryWasmHash;
+    if (factoryWasmHashHex) {
+      try {
+        const factoryWasmHash = Buffer.from(factoryWasmHashHex, 'hex');
+        const factoryCodeKey = buildCodeLedgerKey(factoryWasmHash);
+        const factoryCodeResponse = await rpcServer.getLedgerEntries(factoryCodeKey);
+        if (factoryCodeResponse.entries && factoryCodeResponse.entries.length > 0) {
+          result.factoryCode = factoryCodeResponse.entries[0].liveUntilLedgerSeq;
+        }
+      } catch (e) {
+        console.error('Error fetching factory code TTL:', e);
       }
     }
 
@@ -157,4 +189,37 @@ export async function bumpBalanceTTL(contractAddress, deps = {}) {
 
   const balanceKey = buildBalanceLedgerKey(xlmContractIdBytes, contractId);
   return extendTTL(balanceKey, deps);
+}
+
+/**
+ * Bump TTL of factory contract instance to maximum
+ * @param {object} deps - Dependencies
+ * @returns {Promise<object>} Transaction result
+ */
+export async function bumpFactoryInstanceTTL(deps = {}) {
+  const factoryAddress = config.stellar.accountFactoryAddress;
+  if (!factoryAddress) {
+    throw new Error('Factory address not configured');
+  }
+
+  const factoryId = StellarSdk.StrKey.decodeContract(factoryAddress);
+  const instanceKey = buildInstanceLedgerKey(factoryId);
+  return extendTTL(instanceKey, deps);
+}
+
+/**
+ * Bump TTL of factory contract code (WASM) to maximum
+ * @param {object} deps - Dependencies
+ * @returns {Promise<object>} Transaction result
+ */
+export async function bumpFactoryCodeTTL({ rpcServer, keypair } = {}) {
+  const wasmHashHex = config.stellar.accountFactoryWasmHash;
+  if (!wasmHashHex) {
+    throw new Error('Factory WASM hash not configured');
+  }
+
+  const wasmHash = Buffer.from(wasmHashHex, 'hex');
+  const codeKey = buildCodeLedgerKey(wasmHash);
+
+  return extendTTL(codeKey, { rpcServer, keypair });
 }

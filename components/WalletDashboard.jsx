@@ -5,7 +5,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { MuxedAccount } from '@stellar/stellar-sdk';
 import config from '../utils/config';
-import { getContractTTLs, getTransferHistory, getMnemonic, bumpInstanceTTL, bumpCodeTTL, bumpBalanceTTL } from '../utils/stellar/index';
+import { getContractTTLs, getTransferHistory, getMnemonic, bumpInstanceTTL, bumpCodeTTL, bumpBalanceTTL, bumpFactoryInstanceTTL, bumpFactoryCodeTTL } from '../utils/stellar/index';
 import './WalletDashboard.css';
 
 function WalletDashboard({
@@ -38,6 +38,8 @@ function WalletDashboard({
   const [bumpingInstance, setBumpingInstance] = useState(false);
   const [bumpingCode, setBumpingCode] = useState(false);
   const [bumpingBalance, setBumpingBalance] = useState(false);
+  const [bumpingFactoryInstance, setBumpingFactoryInstance] = useState(false);
+  const [bumpingFactoryCode, setBumpingFactoryCode] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showClassicHistory, setShowClassicHistory] = useState(false);
   const [showExport, setShowExport] = useState(false);
@@ -303,6 +305,34 @@ function WalletDashboard({
       alert(`Failed to bump balance TTL: ${error.message}`);
     } finally {
       setBumpingBalance(false);
+    }
+  };
+
+  const handleBumpFactoryInstance = async (e) => {
+    e.preventDefault();
+    setBumpingFactoryInstance(true);
+    try {
+      await bumpFactoryInstanceTTL();
+      await refreshTTLs();
+    } catch (error) {
+      console.error('Error bumping factory instance TTL:', error);
+      alert(`Failed to bump factory instance TTL: ${error.message}`);
+    } finally {
+      setBumpingFactoryInstance(false);
+    }
+  };
+
+  const handleBumpFactoryCode = async (e) => {
+    e.preventDefault();
+    setBumpingFactoryCode(true);
+    try {
+      await bumpFactoryCodeTTL();
+      await refreshTTLs();
+    } catch (error) {
+      console.error('Error bumping factory code TTL:', error);
+      alert(`Failed to bump factory code TTL: ${error.message}`);
+    } finally {
+      setBumpingFactoryCode(false);
     }
   };
 
@@ -753,13 +783,13 @@ function WalletDashboard({
               <>
                 <p>current ledger: {ttlData.currentLedger}</p>
                 <p>
-                  instance: {ttlData.instance || 'n/a'}
+                  account instance: {ttlData.instance || 'n/a'}
                   {ttlData.instance && (
                     <><br />{ttlData.instance - ttlData.currentLedger} remaining (<a href="#" onClick={handleBumpInstance}>{bumpingInstance ? 'bumping...' : 'bump'}</a>)</>
                   )}
                 </p>
                 <p>
-                  code (wasm): {ttlData.code || 'n/a'}
+                  account code (wasm): {ttlData.code || 'n/a'}
                   {ttlData.code && (
                     <><br />{ttlData.code - ttlData.currentLedger} remaining (<a href="#" onClick={handleBumpCode}>{bumpingCode ? 'bumping...' : 'bump'}</a>)</>
                   )}
@@ -768,6 +798,18 @@ function WalletDashboard({
                   xlm balance: {ttlData.balance || 'n/a'}
                   {ttlData.balance && (
                     <><br />{ttlData.balance - ttlData.currentLedger} remaining (<a href="#" onClick={handleBumpBalance}>{bumpingBalance ? 'bumping...' : 'bump'}</a>)</>
+                  )}
+                </p>
+                <p>
+                  factory instance: {ttlData.factoryInstance || 'n/a'}
+                  {ttlData.factoryInstance && (
+                    <><br />{ttlData.factoryInstance - ttlData.currentLedger} remaining (<a href="#" onClick={handleBumpFactoryInstance}>{bumpingFactoryInstance ? 'bumping...' : 'bump'}</a>)</>
+                  )}
+                </p>
+                <p>
+                  factory code (wasm): {ttlData.factoryCode || 'n/a'}
+                  {ttlData.factoryCode && (
+                    <><br />{ttlData.factoryCode - ttlData.currentLedger} remaining (<a href="#" onClick={handleBumpFactoryCode}>{bumpingFactoryCode ? 'bumping...' : 'bump'}</a>)</>
                   )}
                 </p>
               </>

@@ -49,15 +49,16 @@ Both accounts can send and receive XLM independently, with balances fetched dire
   - `WalletSetup` - Initial wallet creation flow
   - `WalletDashboard` - Main wallet interface
 
-### Smart Contract
+### Smart Contracts
 - **Language**: Rust (Soroban SDK)
-- **Contract**: `simple_account` - implements `__check_auth` for custom account authentication
-- **Location**: `contracts/simple_account/`
+- **Contracts**:
+  - `simple_account` - implements `__check_auth` for custom account authentication (location: `contracts/simple_account/`)
+  - `account_factory` - factory contract that deploys new simple_account instances (location: `contracts/account_factory/`)
 
 ### Wallet Flow
 
 1. **Local Keypair Generation**: Creates a Stellar keypair from a 12-word mnemonic stored in browser
-2. **Contract Deployment**: Deploys the `simple_account` contract with the keypair's public key as owner
+2. **Contract Deployment**: Calls the factory contract to deploy a `simple_account` contract with the keypair's public key as owner. The contract address is deterministically derived from the factory address + public key bytes as salt.
 3. **Transaction Signing**: Transactions are signed locally using ed25519
 4. **On-Chain Verification**: The contract's `__check_auth` verifies signatures before authorizing operations
 
@@ -163,8 +164,12 @@ lumenitos/
 │   ├── WalletDashboard.jsx   # Main wallet interface
 │   └── WalletDashboard.css   # Dashboard styles
 ├── contracts/
-│   └── simple_account/       # Soroban smart contract
-│       ├── src/lib.rs        # Contract implementation
+│   ├── simple_account/       # Custom account contract
+│   │   ├── src/lib.rs        # Contract with __check_auth
+│   │   ├── Cargo.toml        # Rust dependencies
+│   │   └── out/              # Compiled WASM artifact
+│   └── account_factory/      # Factory for deploying accounts
+│       ├── src/lib.rs        # Factory with create() function
 │       ├── Cargo.toml        # Rust dependencies
 │       └── out/              # Compiled WASM artifact
 ├── utils/
@@ -230,6 +235,7 @@ lumenitos/
 | `NEXT_PUBLIC_STELLAR_SOROBAN_RPC_URL` | Soroban RPC endpoint | No (default: testnet RPC) |
 | `NEXT_PUBLIC_STELLAR_FRIENDBOT_URL` | Friendbot URL for testnet funding | No (default: testnet Friendbot) |
 | `NEXT_PUBLIC_STELLAR_EXPLORER_URL` | Block explorer URL | No (default: stellar.expert testnet) |
+| `NEXT_PUBLIC_ACCOUNT_FACTORY_ADDRESS` | Factory contract address for deploying new wallets | No (default: testnet factory) |
 | `NEXT_PUBLIC_OZ_CHANNELS_API_KEY` | OpenZeppelin Channels API key for gasless transactions | No (gasless disabled if not set) |
 | `STELLAR_WASM_ADMIN_SECRET` | Server-side Stellar secret for WASM lifecycle (install/restore/TTL bump) | No (WASM auto-management disabled if not set) |
 

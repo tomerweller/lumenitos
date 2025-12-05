@@ -9,7 +9,6 @@ import { createRpcServer, getXlmContract } from './rpc';
 import { getStoredKeypair } from './keypair';
 import {
   deriveContractAddress,
-  deriveContractSalt,
   buildInstanceLedgerKey,
   computeNetworkIdHash,
   waitForTransaction,
@@ -38,7 +37,8 @@ export async function contractInstanceExists(contractAddress, { rpcServer } = {}
 }
 
 /**
- * Deploy the simple account contract
+ * Deploy the simple account contract via the factory.
+ * Calls the factory's `create` function which deploys a new simple_account instance.
  * @param {object} deps - Dependencies
  * @returns {Promise<string>} The deployed contract address
  */
@@ -48,39 +48,44 @@ export async function deploySimpleAccount({ rpcServer, keypair } = {}) {
     throw new Error('No keypair found in storage');
   }
 
-  const wasmHash = config.stellar.simpleAccountWasmHash;
-  if (!wasmHash) {
-    throw new Error('Simple account WASM hash not configured');
+  const factoryAddress = config.stellar.accountFactoryAddress;
+  if (!factoryAddress) {
+    throw new Error('Account factory address not configured');
   }
 
   rpcServer = rpcServer || createRpcServer();
   const publicKey = keypair.publicKey();
-  const salt = deriveContractSalt(publicKey);
+  const pubKeyBytes = StellarSdk.StrKey.decodeEd25519PublicKey(publicKey);
 
   const sourceAccount = await rpcServer.getAccount(publicKey);
 
-  // Convert hex string to Uint8Array
-  const wasmHashBytes = new Uint8Array(wasmHash.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
-  const pubKeyBytes = StellarSdk.StrKey.decodeEd25519PublicKey(publicKey);
-
-  const deployOp = StellarSdk.Operation.createCustomContract({
-    address: new StellarSdk.Address(publicKey),
-    wasmHash: wasmHashBytes,
-    salt: salt,
-    constructorArgs: [
-      StellarSdk.nativeToScVal(pubKeyBytes, { type: 'bytes' })
-    ],
-  });
+  // Build the factory.create(owner_bytes) call
+  // No auth required - anyone can deploy a contract for any public key
+  const factoryContract = new StellarSdk.Contract(factoryAddress);
 
   let transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
     fee: '10000000',
     networkPassphrase: config.networkPassphrase,
   })
-    .addOperation(deployOp)
+    .addOperation(
+      factoryContract.call(
+        'create',
+        StellarSdk.nativeToScVal(pubKeyBytes, { type: 'bytes' })
+      )
+    )
     .setTimeout(30)
     .build();
 
-  transaction = await rpcServer.prepareTransaction(transaction);
+  // Simulate to get resource requirements
+  const simResult = await rpcServer.simulateTransaction(transaction);
+
+  if (!StellarSdk.rpc.Api.isSimulationSuccess(simResult)) {
+    const errorMsg = simResult.error || 'Unknown simulation error';
+    throw new Error(`Factory deployment simulation failed: ${errorMsg}`);
+  }
+
+  // Assemble with simulation results
+  transaction = StellarSdk.rpc.assembleTransaction(transaction, simResult).build();
   transaction.sign(keypair);
 
   const response = await rpcServer.sendTransaction(transaction);
@@ -88,6 +93,10 @@ export async function deploySimpleAccount({ rpcServer, keypair } = {}) {
   if (response.status === 'PENDING') {
     await waitForTransaction(rpcServer, response.hash);
     return deriveContractAddress(publicKey);
+  }
+
+  if (response.status === 'ERROR') {
+    throw new Error(`Factory deployment failed: ${JSON.stringify(response.errorResult)}`);
   }
 
   return deriveContractAddress(publicKey);
