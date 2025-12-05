@@ -501,38 +501,43 @@ export function scValToAmount(scVal) {
 
 ### The Problem
 
-Integrating OpenZeppelin Channels for gasless (sponsored) transfers required understanding how the relayer service works with Soroban transactions.
+Integrating OpenZeppelin Channels for gasless (sponsored) transfers revealed an important limitation that wasn't immediately obvious from the documentation.
 
 ### Investigation
 
-We integrated the `@openzeppelin/relayer-plugin-channels` package to enable fee-free transactions via OZ's hosted relayer service. The API accepts a Soroban host function and auth entries, then wraps them in a transaction using their own "channel accounts" as the source.
+We integrated the `@openzeppelin/relayer-plugin-channels` package to enable fee-free transactions via OZ's hosted relayer service. The initial implementation attempted to support both classic account and contract account transfers with a gasless option.
 
-### How It Works
+When testing:
+1. **Classic account transfers** failed with: "Detached address credentials required: source-account credentials are incompatible with relayer-managed channel accounts"
+2. **Contract account transfers** work correctly after signing the auth entries
 
-OZ Channels operates by:
-1. Using their own "channel accounts" as the transaction source (paying fees)
-2. Attaching user-signed auth entries to authorize the contract invocation
-3. Submitting the transaction on behalf of the user
+### The Root Cause
 
-This works for both classic accounts (G...) and contract accounts (C...) because:
-- The auth entries contain all necessary authorization
-- The transaction source is decoupled from who is authorizing the transfer
+OZ Channels requires **"detached address credentials"** which means:
+- The transfer must come from a **contract account** (C... address)
+- The auth entry must use `sorobanCredentialsAddress` credentials
+- Classic accounts use `sorobanCredentialsSourceAccount` which are NOT supported
 
-### Integration Notes
+This makes sense when you understand how OZ Channels works:
+1. They use their own "channel accounts" as the transaction source
+2. The user's signed auth entries are attached to authorize the contract invocation
+3. Classic account auth is tied to the transaction source, so it can't work with a different source account
 
-```javascript
-// Submit via OZ Channels - works for both account types
-const result = await client.submitSorobanTransaction({
-  func: invokeOp.hostFunction().toXDR('base64'),
-  auth: authEntries.map(a => a.toXDR('base64')),
-});
-```
+### The Solution
 
-For contract accounts, we also sign the auth entries with ed25519 before submitting. For classic accounts, the simulation provides the auth entries ready to use.
+1. Only enable gasless for contract account transfers
+2. Classic accounts must pay their own fees
+3. Document the limitation clearly in code comments
 
 ### Additional Capability: Gasless Contract Deployment
 
-Since the factory contract's `create()` function doesn't require auth (anyone can deploy a contract for any public key), we can also deploy contracts via OZ Channels. This enables **fully gasless onboarding** - users can create and use their contract account without ever needing XLM in their classic account.
+Since the factory contract's `create()` function doesn't require auth (anyone can deploy a contract for any public key), we can also deploy contracts via OZ Channels. This enables **fully gasless onboarding** - users can create and use their contract account without ever needing XLM in their classic account (as long as they receive XLM to their contract account first).
+
+### Key Lessons
+
+1. **Read error messages carefully** - "Detached address credentials required" was the key insight
+2. **Understand the relayer architecture** - OZ Channels uses their accounts as transaction source
+3. **Not all gasless solutions work for all account types** - the credential type matters
 
 ## Challenge 12: Factory Pattern for Contract Account Deployment
 

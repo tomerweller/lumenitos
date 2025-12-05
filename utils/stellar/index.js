@@ -103,9 +103,9 @@ export {
 } from './helpers';
 
 // Gasless transfers (OZ Channels)
+// Note: Only contract account transfers support gasless (address credentials required)
 export {
   isGaslessEnabled,
-  sendGaslessFromClassic,
   sendGaslessFromContract,
   deploySimpleAccountGasless,
 } from './gasless';

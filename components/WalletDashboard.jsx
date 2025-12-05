@@ -60,7 +60,6 @@ function WalletDashboard({
   const [sending, setSending] = useState(false);
   const [classicSending, setClassicSending] = useState(false);
   const [useGasless, setUseGasless] = useState(gaslessEnabled);
-  const [useClassicGasless, setUseClassicGasless] = useState(gaslessEnabled);
   const [copied, setCopied] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [refreshed, setRefreshed] = useState(false);
@@ -203,7 +202,7 @@ function WalletDashboard({
     setClassicSending(true);
     try {
       const finalDest = getMuxedDestination(classicDestination, classicDestMuxedId);
-      await onClassicSend(finalDest, classicAmount, { gasless: useClassicGasless });
+      await onClassicSend(finalDest, classicAmount);
       setClassicDestination('');
       setClassicAmount('');
       setClassicDestMuxedId('');
@@ -597,20 +596,6 @@ function WalletDashboard({
                 />
                 <small>available: {classicBalance} xlm</small>
               </div>
-
-              {gaslessEnabled && (
-                <div className="form-group checkbox-group">
-                  <label>
-                    <input
-                      type="checkbox"
-                      checked={useClassicGasless}
-                      onChange={(e) => setUseClassicGasless(e.target.checked)}
-                      disabled={classicSending}
-                    />
-                    {' '}gasless (no fee)
-                  </label>
-                </div>
-              )}
 
               <p>
                 <a href="#" onClick={(e) => { e.preventDefault(); setShowClassicSend(false); }}>cancel</a>
