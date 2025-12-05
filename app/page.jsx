@@ -14,6 +14,7 @@ import {
   deriveContractAddress,
   sendFromContractAccount,
   isGaslessEnabled,
+  sendGaslessFromClassic,
   sendGaslessFromContract,
 } from '@/utils/stellar/index';
 import WalletDashboard from '@/components/WalletDashboard';
@@ -267,21 +268,25 @@ export default function Home() {
     }
   };
 
-  const handleClassicSend = async (destination, amount) => {
+  const handleClassicSend = async (destination, amount, { gasless = false } = {}) => {
     setLoading(true);
     setStatusMessage(null);
     try {
-      // Classic account transfers always pay their own fees
-      // (Gasless via OZ Channels requires contract account with address credentials)
-      await buildSACTransfer(destination, amount);
-      console.log('Classic account transfer successful');
+      if (gasless && isGaslessEnabled()) {
+        await sendGaslessFromClassic(destination, amount);
+        console.log('Gasless classic account transfer successful');
+      } else {
+        await buildSACTransfer(destination, amount);
+        console.log('Classic account transfer successful');
+      }
 
       // Update balances after successful transaction
       await updateClassicBalance();
       await updateBalance();
 
       // Show success message
-      setStatusMessage({ type: 'success', text: `Successfully sent ${amount} XLM!` });
+      const gaslessLabel = gasless ? ' (gasless)' : '';
+      setStatusMessage({ type: 'success', text: `Successfully sent ${amount} XLM${gaslessLabel}!` });
 
       // Auto-close after 2 seconds
       setTimeout(() => {

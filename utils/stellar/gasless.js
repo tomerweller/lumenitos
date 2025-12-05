@@ -2,9 +2,7 @@
  * Gasless transfer functions using OpenZeppelin Channels
  * Enables fee-free transactions via OZ's hosted relayer service
  *
- * IMPORTANT LIMITATION: OZ Channels requires "detached address credentials"
- * which means only CONTRACT ACCOUNTS (C...) can use gasless transfers.
- * Classic accounts (G...) use source-account credentials which are NOT supported.
+ * Both classic accounts (G...) and contract accounts (C...) support gasless transfers.
  *
  * @see https://docs.openzeppelin.com/relayer/1.2.x/plugins/channels
  */
