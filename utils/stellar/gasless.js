@@ -14,8 +14,8 @@ import { ChannelsClient } from '@openzeppelin/relayer-plugin-channels';
 import config from '../config';
 import { createRpcServer, getXlmContract } from './rpc';
 import { getStoredKeypair } from './keypair';
-import { xlmToStroops, deriveContractAddress } from './helpers';
-import { contractInstanceExists, deploySimpleAccount } from './contract';
+import { xlmToStroops, deriveContractAddress, waitForTransaction } from './helpers';
+import { contractInstanceExists } from './contract';
 import { signAuthEntry, parseAuthEntry, bumpInstructionLimit } from './transfer';
 import { computeNetworkIdHash } from './helpers';
 
@@ -40,6 +40,98 @@ function createChannelsClient() {
     baseUrl: config.gasless.baseUrl,
     apiKey: config.gasless.apiKey,
   });
+}
+
+/**
+ * Deploy the simple account contract via the factory using gasless (OZ Channels).
+ * Since the factory.create() doesn't require auth, anyone can pay the fees.
+ *
+ * @param {object} deps - Dependencies
+ * @returns {Promise<string>} The deployed contract address
+ */
+export async function deploySimpleAccountGasless({ rpcServer, keypair } = {}) {
+  keypair = keypair || getStoredKeypair();
+  if (!keypair) {
+    throw new Error('No keypair found in storage');
+  }
+
+  const factoryAddress = config.stellar.accountFactoryAddress;
+  if (!factoryAddress) {
+    throw new Error('Account factory address not configured');
+  }
+
+  rpcServer = rpcServer || createRpcServer();
+  const client = createChannelsClient();
+
+  const publicKey = keypair.publicKey();
+  const pubKeyBytes = StellarSdk.StrKey.decodeEd25519PublicKey(publicKey);
+
+  // We need a source account for simulation - use any funded account
+  // OZ Channels will replace it with their relayer account
+  const sourceAccount = await rpcServer.getAccount(publicKey);
+
+  // Build the factory.create(owner_bytes) call
+  const factoryContract = new StellarSdk.Contract(factoryAddress);
+
+  let transaction = new StellarSdk.TransactionBuilder(sourceAccount, {
+    fee: '100',
+    networkPassphrase: config.networkPassphrase,
+  })
+    .addOperation(
+      factoryContract.call(
+        'create',
+        StellarSdk.nativeToScVal(pubKeyBytes, { type: 'bytes' })
+      )
+    )
+    .setTimeout(30)
+    .build();
+
+  // Simulate to get resource requirements
+  const simResult = await rpcServer.simulateTransaction(transaction);
+
+  if (!StellarSdk.rpc.Api.isSimulationSuccess(simResult)) {
+    const errorMsg = simResult.error || 'Unknown simulation error';
+    throw new Error(`Factory deployment simulation failed: ${errorMsg}`);
+  }
+
+  // Assemble with simulation results
+  transaction = StellarSdk.rpc.assembleTransaction(transaction, simResult).build();
+
+  // Extract the invoke host function operation
+  const txXdr = transaction.toXDR();
+  const txEnvelope = StellarSdk.xdr.TransactionEnvelope.fromXDR(txXdr, 'base64');
+  const ops = txEnvelope.v1().tx().operations();
+  const invokeOp = ops[0].body().invokeHostFunctionOp();
+
+  // Get the function XDR - no auth needed for factory.create()
+  const func = invokeOp.hostFunction().toXDR('base64');
+  const authEntries = invokeOp.auth() || [];
+  const auth = authEntries.map(a => a.toXDR('base64'));
+
+  // Submit via OZ Channels
+  console.log('Deploying contract account via OZ Channels (gasless)...');
+
+  try {
+    const result = await client.submitSorobanTransaction({
+      func,
+      auth,
+    });
+
+    console.log('OZ Channels deployment response:', result);
+
+    // Wait for transaction confirmation
+    if (result.hash) {
+      await waitForTransaction(rpcServer, result.hash);
+    }
+
+    return deriveContractAddress(publicKey);
+  } catch (error) {
+    console.error('OZ Channels deployment error:', error);
+    if (error.response?.data) {
+      console.error('Error response data:', JSON.stringify(error.response.data, null, 2));
+    }
+    throw error;
+  }
 }
 
 /**
@@ -162,12 +254,11 @@ export async function sendGaslessFromContract(destination, amount, { rpcServer, 
   const publicKey = keypair.publicKey();
   const contractAddress = deriveContractAddress(publicKey);
 
-  // Check if contract exists, deploy if not
-  // Note: Deployment requires gas, so user needs some XLM for first use
+  // Check if contract exists, deploy gaslessly if not
   const exists = await contractInstanceExists(contractAddress, { rpcServer });
   if (!exists) {
-    console.log('Contract does not exist, deploying...');
-    await deploySimpleAccount({ rpcServer, keypair });
+    console.log('Contract does not exist, deploying via gasless...');
+    await deploySimpleAccountGasless({ rpcServer, keypair });
     console.log('Contract deployed at:', contractAddress);
   }
 

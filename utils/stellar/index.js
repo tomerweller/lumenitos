@@ -107,4 +107,5 @@ export {
 export {
   isGaslessEnabled,
   sendGaslessFromContract,
+  deploySimpleAccountGasless,
 } from './gasless';
