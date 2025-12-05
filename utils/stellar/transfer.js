@@ -8,6 +8,7 @@ import config from '../config';
 import { createRpcServer, getXlmContract, getXlmContractId } from './rpc';
 import { getStoredKeypair } from './keypair';
 import { xlmToStroops, waitForTransaction, deriveContractAddress, computeNetworkIdHash, scValToAddress, scValToAmount, stroopsToXlm } from './helpers';
+import { sendGaslessFromClassic, isGaslessEnabled } from './gasless';
 
 /**
  * Build a SAC transfer operation
@@ -143,9 +144,11 @@ export function bumpInstructionLimit(txEnvelope, additionalInstructions = 100000
  * Fund a testnet account using Friendbot
  * @param {string} address - Address to fund (G... or C...)
  * @param {string} signerPublicKey - Signer's public key (for C... addresses)
+ * @param {object} options - Options
+ * @param {boolean} options.gasless - Use gasless transfer via OZ Channels
  * @returns {Promise<object>} Funding result
  */
-export async function fundTestnetAccount(address, signerPublicKey = null) {
+export async function fundTestnetAccount(address, signerPublicKey = null, { gasless = false } = {}) {
   try {
     const addressToFund = address.startsWith('C') && signerPublicKey ? signerPublicKey : address;
     const friendbotUrl = `${config.stellar.friendbotUrl}?addr=${encodeURIComponent(addressToFund)}`;
@@ -164,14 +167,19 @@ export async function fundTestnetAccount(address, signerPublicKey = null) {
 
     const friendbotResult = await response.json().catch(() => ({}));
 
-    // For smart wallets, transfer XLM using SAC
+    // For smart wallets, transfer XLM using SAC (gasless or regular)
     if (address.startsWith('C') && signerPublicKey) {
       const transferAmount = '5000';
-      const transferResult = await buildSACTransfer(address, transferAmount);
+      let transferResult;
+      if (gasless && isGaslessEnabled()) {
+        transferResult = await sendGaslessFromClassic(address, transferAmount);
+      } else {
+        transferResult = await buildSACTransfer(address, transferAmount);
+      }
       return {
         friendbot: friendbotResult,
         transfer: transferResult,
-        message: `Funded signer with 10,000 XLM and transferred ${transferAmount} XLM to smart wallet!`
+        message: `Funded signer with 10,000 XLM and transferred ${transferAmount} XLM to smart wallet${gasless ? ' (gasless)' : ''}!`
       };
     }
 
