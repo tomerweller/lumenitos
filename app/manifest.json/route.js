@@ -1,8 +1,14 @@
 export async function GET() {
+  const isLocal = process.env.NODE_ENV === 'development';
   const isTestnet = process.env.NEXT_PUBLIC_STELLAR_NETWORK !== 'mainnet';
-  const appName = isTestnet ? "Lumenitos (testnet)" : "Lumenitos";
-  // Testnet: green dot icons, Mainnet: red dot icons
-  const iconSuffix = isTestnet ? "-testnet" : "-mainnet";
+
+  // Local: blue dot, Testnet: green dot, Mainnet: red dot
+  const appName = isLocal
+    ? "Lumenitos (local)"
+    : isTestnet
+      ? "Lumenitos (testnet)"
+      : "Lumenitos";
+  const iconSuffix = isLocal ? "-local" : isTestnet ? "-testnet" : "-mainnet";
 
   const manifest = {
     name: appName,
