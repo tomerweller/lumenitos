@@ -272,3 +272,230 @@ describe('computeNetworkIdHash', () => {
     expect(Buffer.from(hash1).toString('hex')).toBe(Buffer.from(hash2).toString('hex'));
   });
 });
+
+describe('parseAuthEntry Edge Cases', () => {
+  it('throws for unknown format', () => {
+    expect(() => parseAuthEntry(12345)).toThrow('Unknown auth entry format');
+  });
+
+  it('throws for null', () => {
+    expect(() => parseAuthEntry(null)).toThrow();
+  });
+
+  it('throws for empty object', () => {
+    expect(() => parseAuthEntry({})).toThrow('Unknown auth entry format');
+  });
+
+  it('throws for invalid base64 string', () => {
+    expect(() => parseAuthEntry('not-valid-base64-xdr!!!')).toThrow();
+  });
+
+  it('handles object with toXDR method', () => {
+    const contractAddress = StellarSdk.StrKey.decodeContract(
+      'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC'
+    );
+    const contractFn = new StellarSdk.xdr.InvokeContractArgs({
+      contractAddress: StellarSdk.xdr.ScAddress.scAddressTypeContract(contractAddress),
+      functionName: 'test',
+      args: [],
+    });
+    const hostFn = StellarSdk.xdr.SorobanAuthorizedFunction.sorobanAuthorizedFunctionTypeContractFn(contractFn);
+    const rootInvocation = new StellarSdk.xdr.SorobanAuthorizedInvocation({
+      function: hostFn,
+      subInvocations: [],
+    });
+    const auth = new StellarSdk.xdr.SorobanAuthorizationEntry({
+      credentials: StellarSdk.xdr.SorobanCredentials.sorobanCredentialsSourceAccount(),
+      rootInvocation: rootInvocation,
+    });
+
+    // Object with toXDR method should pass through
+    const result = parseAuthEntry(auth);
+    expect(result).toBe(auth);
+  });
+});
+
+describe('bumpInstructionLimit Edge Cases', () => {
+  it('accepts custom instruction bump amount', () => {
+    const keypair = StellarSdk.Keypair.random();
+    const account = new StellarSdk.Account(keypair.publicKey(), '0');
+
+    const sorobanData = new StellarSdk.SorobanDataBuilder()
+      .setReadOnly([])
+      .setReadWrite([])
+      .setResources(50000, 1000, 1000)
+      .build();
+
+    const tx = new StellarSdk.TransactionBuilder(account, {
+      fee: '10000',
+      networkPassphrase: 'Test SDF Network ; September 2015',
+    })
+      .addOperation(StellarSdk.Operation.bumpSequence({ bumpTo: '1' }))
+      .setSorobanData(sorobanData)
+      .setTimeout(30)
+      .build();
+
+    const envelope = tx.toEnvelope();
+    const originalInstructions = envelope.v1().tx().ext().sorobanData().resources().instructions();
+
+    // Use custom bump amount
+    bumpInstructionLimit(envelope, 100000);
+
+    const newInstructions = envelope.v1().tx().ext().sorobanData().resources().instructions();
+    expect(newInstructions).toBe(originalInstructions + 100000);
+  });
+
+  it('uses default 1000000 bump when not specified', () => {
+    const keypair = StellarSdk.Keypair.random();
+    const account = new StellarSdk.Account(keypair.publicKey(), '0');
+
+    const sorobanData = new StellarSdk.SorobanDataBuilder()
+      .setReadOnly([])
+      .setReadWrite([])
+      .setResources(100000, 1000, 1000)
+      .build();
+
+    const tx = new StellarSdk.TransactionBuilder(account, {
+      fee: '10000',
+      networkPassphrase: 'Test SDF Network ; September 2015',
+    })
+      .addOperation(StellarSdk.Operation.bumpSequence({ bumpTo: '1' }))
+      .setSorobanData(sorobanData)
+      .setTimeout(30)
+      .build();
+
+    const envelope = tx.toEnvelope();
+    const originalInstructions = envelope.v1().tx().ext().sorobanData().resources().instructions();
+
+    bumpInstructionLimit(envelope);
+
+    const newInstructions = envelope.v1().tx().ext().sorobanData().resources().instructions();
+    expect(newInstructions).toBe(originalInstructions + 1000000);
+  });
+});
+
+describe('parseTransferEvent Edge Cases', () => {
+  const targetAddress = 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC';
+
+  it('handles event with only one topic', () => {
+    const event = {
+      topic: [StellarSdk.nativeToScVal('transfer', { type: 'symbol' })],
+      value: null,
+      txHash: 'one-topic-123',
+      ledger: 12345,
+      ledgerClosedAt: '2025-01-01T00:00:00Z',
+    };
+
+    const parsed = parseTransferEvent(event, targetAddress);
+    expect(parsed.from).toBe('unknown');
+    expect(parsed.to).toBe('unknown');
+  });
+
+  it('handles event with two topics (no to address)', () => {
+    const fromAddress = 'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4';
+    const event = {
+      topic: [
+        StellarSdk.nativeToScVal('transfer', { type: 'symbol' }),
+        StellarSdk.nativeToScVal(StellarSdk.Address.fromString(fromAddress), { type: 'address' }),
+      ],
+      value: null,
+      txHash: 'two-topics-123',
+      ledger: 12345,
+      ledgerClosedAt: '2025-01-01T00:00:00Z',
+    };
+
+    const parsed = parseTransferEvent(event, targetAddress);
+    expect(parsed.from).toBe(fromAddress);
+    expect(parsed.to).toBe('unknown');
+  });
+
+  it('handles null value field', () => {
+    const event = {
+      topic: [],
+      value: null,
+      txHash: 'null-value-123',
+      ledger: 12345,
+      ledgerClosedAt: '2025-01-01T00:00:00Z',
+    };
+
+    const parsed = parseTransferEvent(event, targetAddress);
+    expect(parsed.amountXLM).toBe(0);
+  });
+
+  it('handles undefined topic field', () => {
+    const event = {
+      // topic is undefined
+      value: null,
+      txHash: 'no-topic-123',
+      ledger: 12345,
+      ledgerClosedAt: '2025-01-01T00:00:00Z',
+    };
+
+    const parsed = parseTransferEvent(event, targetAddress);
+    expect(parsed.from).toBe('unknown');
+    expect(parsed.to).toBe('unknown');
+  });
+
+  it('determines direction correctly for received transfers', () => {
+    const fromAddress = 'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4';
+
+    const event = {
+      topic: [
+        StellarSdk.nativeToScVal('transfer', { type: 'symbol' }),
+        StellarSdk.nativeToScVal(StellarSdk.Address.fromString(fromAddress), { type: 'address' }),
+        StellarSdk.nativeToScVal(StellarSdk.Address.fromString(targetAddress), { type: 'address' }),
+      ],
+      value: StellarSdk.nativeToScVal(10000000n, { type: 'i128' }),
+      txHash: 'received-123',
+      ledger: 12345,
+      ledgerClosedAt: '2025-01-01T00:00:00Z',
+    };
+
+    const parsed = parseTransferEvent(event, targetAddress);
+    expect(parsed.direction).toBe('received');
+    expect(parsed.counterparty).toBe(fromAddress);
+  });
+
+  it('handles very small amounts', () => {
+    const fromAddress = targetAddress;
+    const toAddress = 'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4';
+    const amount = 1n; // 0.0000001 XLM
+
+    const event = {
+      topic: [
+        StellarSdk.nativeToScVal('transfer', { type: 'symbol' }),
+        StellarSdk.nativeToScVal(StellarSdk.Address.fromString(fromAddress), { type: 'address' }),
+        StellarSdk.nativeToScVal(StellarSdk.Address.fromString(toAddress), { type: 'address' }),
+      ],
+      value: StellarSdk.nativeToScVal(amount, { type: 'i128' }),
+      txHash: 'tiny-123',
+      ledger: 12345,
+      ledgerClosedAt: '2025-01-01T00:00:00Z',
+    };
+
+    const parsed = parseTransferEvent(event, targetAddress);
+    expect(parsed.amountXLM).toBeCloseTo(0.0000001, 7);
+  });
+
+  it('preserves all event metadata', () => {
+    const fromAddress = targetAddress;
+    const toAddress = 'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4';
+
+    const event = {
+      topic: [
+        StellarSdk.nativeToScVal('transfer', { type: 'symbol' }),
+        StellarSdk.nativeToScVal(StellarSdk.Address.fromString(fromAddress), { type: 'address' }),
+        StellarSdk.nativeToScVal(StellarSdk.Address.fromString(toAddress), { type: 'address' }),
+      ],
+      value: StellarSdk.nativeToScVal(10000000n, { type: 'i128' }),
+      txHash: 'metadata-test-hash',
+      ledger: 99999,
+      ledgerClosedAt: '2025-06-15T12:30:00Z',
+    };
+
+    const parsed = parseTransferEvent(event, targetAddress);
+    expect(parsed.txHash).toBe('metadata-test-hash');
+    expect(parsed.ledger).toBe(99999);
+    expect(parsed.timestamp).toBe('2025-06-15T12:30:00Z');
+  });
+});

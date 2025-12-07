@@ -103,5 +103,90 @@ describe('Keypair Pure Functions', () => {
       const keypair2 = deriveKeypairFromMnemonic(mnemonic2);
       expect(keypair1.publicKey()).not.toBe(keypair2.publicKey());
     });
+
+    it('handles normalized mnemonic with extra spaces', () => {
+      const normalizedMnemonic = normalizeMnemonic('  ' + TEST_MNEMONIC + '  ');
+      const keypair = deriveKeypairFromMnemonic(normalizedMnemonic);
+      expect(keypair.publicKey()).toBe(TEST_PUBLIC_KEY);
+    });
+
+    it('handles uppercase mnemonic after normalization', () => {
+      const normalizedMnemonic = normalizeMnemonic(TEST_MNEMONIC.toUpperCase());
+      const keypair = deriveKeypairFromMnemonic(normalizedMnemonic);
+      expect(keypair.publicKey()).toBe(TEST_PUBLIC_KEY);
+    });
+  });
+
+  describe('Error Handling', () => {
+    it('validateMnemonic returns false for null', () => {
+      expect(validateMnemonic(null)).toBe(false);
+    });
+
+    it('validateMnemonic returns false for undefined', () => {
+      expect(validateMnemonic(undefined)).toBe(false);
+    });
+
+    it('validateMnemonic returns false for numbers', () => {
+      expect(validateMnemonic(12345)).toBe(false);
+    });
+
+    it('validateMnemonic returns false for wrong word count', () => {
+      expect(validateMnemonic('abandon abandon abandon abandon abandon')).toBe(false);
+    });
+
+    it('validateMnemonic returns false for invalid checksum', () => {
+      // Valid words but invalid checksum
+      expect(validateMnemonic('abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon')).toBe(false);
+    });
+
+    it('normalizeMnemonic handles empty string', () => {
+      expect(normalizeMnemonic('')).toBe('');
+    });
+
+    it('normalizeMnemonic handles only whitespace', () => {
+      expect(normalizeMnemonic('   ')).toBe('');
+    });
+
+    it('normalizeMnemonic handles tabs and newlines', () => {
+      expect(normalizeMnemonic('word1\tword2\nword3')).toBe('word1 word2 word3');
+    });
+  });
+
+  describe('Edge Cases', () => {
+    it('generated mnemonic has no leading/trailing spaces', () => {
+      const mnemonic = generateMnemonic();
+      expect(mnemonic).toBe(mnemonic.trim());
+    });
+
+    it('generated mnemonic words are lowercase', () => {
+      const mnemonic = generateMnemonic();
+      expect(mnemonic).toBe(mnemonic.toLowerCase());
+    });
+
+    it('generated mnemonic uses single spaces between words', () => {
+      const mnemonic = generateMnemonic();
+      expect(mnemonic).not.toMatch(/\s{2,}/);
+    });
+
+    it('validates 24-word mnemonics', () => {
+      // 24-word mnemonic is also valid BIP39
+      const mnemonic24 = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art';
+      expect(validateMnemonic(mnemonic24)).toBe(true);
+    });
+
+    it('keypair can sign and verify', () => {
+      const keypair = deriveKeypairFromMnemonic(TEST_MNEMONIC);
+      const message = Buffer.from('test message');
+      const signature = keypair.sign(message);
+      expect(keypair.verify(message, signature)).toBe(true);
+    });
+
+    it('keypair signature fails for wrong message', () => {
+      const keypair = deriveKeypairFromMnemonic(TEST_MNEMONIC);
+      const message = Buffer.from('test message');
+      const wrongMessage = Buffer.from('wrong message');
+      const signature = keypair.sign(message);
+      expect(keypair.verify(wrongMessage, signature)).toBe(false);
+    });
   });
 });
