@@ -24,6 +24,10 @@
   background-color: #28a745;
 }
 
+.wallet-dashboard .network-label.local {
+  background-color: #007aff;
+}
+
 .wallet-dashboard .network-label.mainnet {
   background-color: #dc3545;
 }

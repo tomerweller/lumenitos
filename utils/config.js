@@ -3,10 +3,19 @@
  * Uses NEXT_PUBLIC_ prefixed environment variables for client-side access
  */
 
+// Detect if running on Vercel preview deployment or local dev server
+const isVercelPreview = process.env.NEXT_PUBLIC_VERCEL_ENV === 'preview';
+const isLocalDev = process.env.NODE_ENV === 'development';
+
 // Client-accessible configuration (safe to expose to browser)
 const publicConfig = {
   stellar: {
     network: process.env.NEXT_PUBLIC_STELLAR_NETWORK || 'testnet',
+    // Display label includes "/ local" hint for Vercel preview or local dev
+    get networkLabel() {
+      const base = this.network;
+      return (isVercelPreview || isLocalDev) && base === 'testnet' ? 'testnet / local' : base;
+    },
     sorobanRpcUrl: process.env.NEXT_PUBLIC_STELLAR_SOROBAN_RPC_URL || 'https://soroban-testnet.stellar.org',
     friendbotUrl: process.env.NEXT_PUBLIC_STELLAR_FRIENDBOT_URL || 'https://friendbot.stellar.org',
     explorerUrl: process.env.NEXT_PUBLIC_STELLAR_EXPLORER_URL || 'https://stellar.expert/explorer/testnet',
@@ -34,6 +43,9 @@ const publicConfig = {
   get isTestnet() {
     return this.stellar.network !== 'mainnet';
   },
+  get isLocal() {
+    return isVercelPreview || isLocalDev;
+  },
 };
 
 // Combined config export
@@ -41,6 +53,7 @@ export const config = {
   stellar: publicConfig.stellar,
   networkPassphrase: publicConfig.networkPassphrase,
   isTestnet: publicConfig.isTestnet,
+  isLocal: publicConfig.isLocal,
 };
 
 // Export public config that can be imported directly in client components

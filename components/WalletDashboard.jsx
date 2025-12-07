@@ -408,8 +408,8 @@ function WalletDashboard({
     return (
       <div className="wallet-dashboard">
         <h1>LUMENITOS</h1>
-        <p className={`network-label ${config.isTestnet ? 'testnet' : 'mainnet'}`}>
-          {config.isTestnet ? config.stellar.network : 'MAINNET - FUNDS AT RISK'}
+        <p className={`network-label ${config.isTestnet ? (config.isLocal ? 'local' : 'testnet') : 'mainnet'}`}>
+          {config.isTestnet ? config.stellar.networkLabel : 'MAINNET - FUNDS AT RISK'}
         </p>
         <p className="disclaimer">THIS IS AN EXPERIMENTAL STELLAR SMART WALLET. DON'T BE STUPID.</p>
 
@@ -468,8 +468,8 @@ function WalletDashboard({
   return (
     <div className="wallet-dashboard">
       <h1>LUMENITOS</h1>
-      <p className={`network-label ${config.isTestnet ? 'testnet' : 'mainnet'}`}>
-        {config.isTestnet ? config.stellar.network : 'MAINNET - FUNDS AT RISK'}
+      <p className={`network-label ${config.isTestnet ? (config.isLocal ? 'local' : 'testnet') : 'mainnet'}`}>
+        {config.isTestnet ? config.stellar.networkLabel : 'MAINNET - FUNDS AT RISK'}
       </p>
       <p className="disclaimer">THIS IS AN EXPERIMENTAL STELLAR SMART WALLET. DON'T BE STUPID.</p>
 
