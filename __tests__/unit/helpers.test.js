@@ -164,4 +164,141 @@ describe('Helpers', () => {
       expect(scValToAmount(scVal)).toBe(0n);
     });
   });
+
+  describe('Error Handling and Edge Cases', () => {
+    describe('stroopsToXlm edge cases', () => {
+      it('handles negative values', () => {
+        expect(stroopsToXlm(-10000000)).toBe(-1);
+      });
+
+      it('handles very small bigint values', () => {
+        expect(stroopsToXlm(BigInt(1))).toBeCloseTo(0.0000001, 7);
+      });
+
+      it('handles zero bigint', () => {
+        expect(stroopsToXlm(BigInt(0))).toBe(0);
+      });
+
+      it('handles maximum safe integer', () => {
+        const result = stroopsToXlm(Number.MAX_SAFE_INTEGER);
+        expect(typeof result).toBe('number');
+        expect(result).toBeGreaterThan(0);
+      });
+    });
+
+    describe('xlmToStroops edge cases', () => {
+      it('handles negative values', () => {
+        expect(xlmToStroops(-1)).toBe(-10000000);
+      });
+
+      it('handles numeric strings', () => {
+        expect(xlmToStroops('100')).toBe(1000000000);
+      });
+
+      it('handles decimal strings', () => {
+        expect(xlmToStroops('0.0000001')).toBe(1);
+      });
+
+      it('handles integer numbers', () => {
+        expect(xlmToStroops(5)).toBe(50000000);
+      });
+
+      it('rounds down sub-stroop amounts', () => {
+        // 0.00000005 XLM = 0.5 stroops, floors to 0
+        expect(xlmToStroops(0.00000005)).toBe(0);
+      });
+
+      it('handles zero', () => {
+        expect(xlmToStroops(0)).toBe(0);
+        expect(xlmToStroops('0')).toBe(0);
+      });
+    });
+
+    describe('formatXlmBalance edge cases', () => {
+      it('handles negative balances', () => {
+        const result = formatXlmBalance(-1.5);
+        expect(result).toBe('-1.5');
+      });
+
+      it('handles very small decimals', () => {
+        expect(formatXlmBalance(0.0000001)).toBe('0.0000001');
+      });
+
+      it('handles exactly 7 decimal places', () => {
+        expect(formatXlmBalance(1.2345678)).toBe('1.2345678');
+      });
+
+      it('removes unnecessary trailing zeros after decimal point', () => {
+        expect(formatXlmBalance(1.100000)).toBe('1.1');
+        expect(formatXlmBalance(10.000000)).toBe('10');
+      });
+
+      it('handles large whole numbers', () => {
+        expect(formatXlmBalance(1000000)).toBe('1000000');
+      });
+    });
+
+    describe('deriveContractSalt edge cases', () => {
+      it('throws for invalid public key format', () => {
+        expect(() => deriveContractSalt('invalid-key')).toThrow();
+      });
+
+      it('throws for contract address instead of public key', () => {
+        // Contract addresses (C...) cannot be used to derive salt
+        expect(() => deriveContractSalt('CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC')).toThrow();
+      });
+
+      it('throws for secret key', () => {
+        const keypair = StellarSdk.Keypair.random();
+        expect(() => deriveContractSalt(keypair.secret())).toThrow();
+      });
+    });
+
+    describe('deriveContractAddress edge cases', () => {
+      it('throws for invalid public key', () => {
+        expect(() => deriveContractAddress('not-a-valid-key')).toThrow();
+      });
+
+      it('returns consistent results for same input', () => {
+        const result1 = deriveContractAddress(TEST_PUBLIC_KEY);
+        const result2 = deriveContractAddress(TEST_PUBLIC_KEY);
+        expect(result1).toBe(result2);
+      });
+
+      it('returns different results for different inputs', () => {
+        const keypair2 = StellarSdk.Keypair.random();
+        const result1 = deriveContractAddress(TEST_PUBLIC_KEY);
+        const result2 = deriveContractAddress(keypair2.publicKey());
+        expect(result1).not.toBe(result2);
+      });
+    });
+
+    describe('scValToAmount edge cases', () => {
+      it('handles negative i128 values', () => {
+        const scVal = StellarSdk.nativeToScVal(-100000000n, { type: 'i128' });
+        expect(scValToAmount(scVal)).toBe(-100000000n);
+      });
+
+      it('handles boolean ScVal (true converts to 1n)', () => {
+        const scVal = StellarSdk.nativeToScVal(true, { type: 'bool' });
+        // Boolean true converts to 1 via scValToNative, then to 1n
+        expect(scValToAmount(scVal)).toBe(1n);
+      });
+
+      it('handles boolean ScVal (false converts to 0n)', () => {
+        const scVal = StellarSdk.nativeToScVal(false, { type: 'bool' });
+        expect(scValToAmount(scVal)).toBe(0n);
+      });
+
+      it('handles void ScVal', () => {
+        const scVal = StellarSdk.xdr.ScVal.scvVoid();
+        expect(scValToAmount(scVal)).toBe(0n);
+      });
+
+      it('handles symbol ScVal', () => {
+        const scVal = StellarSdk.nativeToScVal('transfer', { type: 'symbol' });
+        expect(scValToAmount(scVal)).toBe(0n);
+      });
+    });
+  });
 });
