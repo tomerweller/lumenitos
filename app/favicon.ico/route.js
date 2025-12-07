@@ -2,9 +2,10 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 
 export async function GET() {
+  const isLocal = process.env.NODE_ENV === 'development';
   const isTestnet = process.env.NEXT_PUBLIC_STELLAR_NETWORK !== 'mainnet';
-  // Use testnet icon with green dot, or mainnet icon with red dot
-  const iconName = isTestnet ? 'icon-192-testnet.png' : 'icon-192-mainnet.png';
+  // Local: blue dot, Testnet: green dot, Mainnet: red dot
+  const iconName = isLocal ? 'icon-192-local.png' : isTestnet ? 'icon-192-testnet.png' : 'icon-192-mainnet.png';
   const iconPath = join(process.cwd(), 'public', iconName);
 
   const iconBuffer = readFileSync(iconPath);

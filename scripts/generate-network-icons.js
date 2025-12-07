@@ -2,6 +2,7 @@
  * Generate network-specific icons with colored dot indicator in bottom-left corner
  * - Testnet: green dot
  * - Mainnet: red dot
+ * - Local dev: blue dot
  */
 
 const sharp = require('sharp');
@@ -39,6 +40,7 @@ async function main() {
 
   const GREEN = '#28a745';  // Testnet
   const RED = '#ff3b30';    // Mainnet
+  const BLUE = '#007aff';   // Local dev
 
   // Generate testnet icons (green dot)
   await addDot(
@@ -68,6 +70,21 @@ async function main() {
     path.join(publicDir, 'icon-512-mainnet.png'),
     512,
     RED
+  );
+
+  // Generate local dev icons (blue dot)
+  await addDot(
+    path.join(publicDir, 'icon-192.png'),
+    path.join(publicDir, 'icon-192-local.png'),
+    192,
+    BLUE
+  );
+
+  await addDot(
+    path.join(publicDir, 'icon-512.png'),
+    path.join(publicDir, 'icon-512-local.png'),
+    512,
+    BLUE
   );
 
   console.log('Network icons generated successfully!');
