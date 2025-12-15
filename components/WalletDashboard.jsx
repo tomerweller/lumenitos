@@ -167,7 +167,7 @@ function WalletDashboard({
     e.preventDefault();
     setFunding(true);
     try {
-      await onFundAccount({ gasless: gaslessEnabled && useGasless });
+      await onFundAccount();
       setFunding(false);
       setFunded(true);
       setTimeout(() => setFunded(false), 2000);

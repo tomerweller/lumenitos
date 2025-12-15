@@ -307,10 +307,10 @@ export default function Home() {
     }
   };
 
-  const handleFundAccount = async ({ gasless = false } = {}) => {
+  const handleFundAccount = async () => {
     try {
-      // Fund the wallet - for smart wallets, this funds the signer and transfers to the wallet
-      await fundTestnetAccount(walletAddress, publicKey, { gasless });
+      // Fund both the signer and smart wallet via friendbot
+      await fundTestnetAccount(walletAddress, publicKey);
 
       // Update balances after funding
       await updateBalance();

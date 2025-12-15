@@ -8,7 +8,6 @@ import config from '../config';
 import { createRpcServer, getXlmContract, getXlmContractId } from './rpc';
 import { getStoredKeypair } from './keypair';
 import { xlmToStroops, waitForTransaction, deriveContractAddress, computeNetworkIdHash, scValToAddress, scValToAmount, stroopsToXlm } from './helpers';
-import { sendGaslessFromClassic, isGaslessEnabled } from './gasless';
 
 /**
  * Build a SAC transfer operation
@@ -142,48 +141,65 @@ export function bumpInstructionLimit(txEnvelope, additionalInstructions = 100000
 
 /**
  * Fund a testnet account using Friendbot
+ * Friendbot now supports both classic (G...) and contract (C...) addresses directly.
  * @param {string} address - Address to fund (G... or C...)
  * @param {string} signerPublicKey - Signer's public key (for C... addresses)
- * @param {object} options - Options
- * @param {boolean} options.gasless - Use gasless transfer via OZ Channels
  * @returns {Promise<object>} Funding result
  */
-export async function fundTestnetAccount(address, signerPublicKey = null, { gasless = false } = {}) {
+export async function fundTestnetAccount(address, signerPublicKey = null) {
   try {
-    const addressToFund = address.startsWith('C') && signerPublicKey ? signerPublicKey : address;
-    const friendbotUrl = `${config.stellar.friendbotUrl}?addr=${encodeURIComponent(addressToFund)}`;
+    // For smart wallets, fund both the signer and the contract account
+    if (address.startsWith('C') && signerPublicKey) {
+      // Fund signer's classic account
+      const signerUrl = `${config.stellar.friendbotUrl}?addr=${encodeURIComponent(signerPublicKey)}`;
+      const signerResponse = await fetch(signerUrl);
+
+      let signerResult = {};
+      if (signerResponse.ok) {
+        signerResult = await signerResponse.json().catch(() => ({}));
+      } else {
+        const errorData = await signerResponse.json().catch(() => ({}));
+        // Ignore "already funded" errors for signer
+        if (!errorData.detail?.includes('already funded')) {
+          throw new Error(`Friendbot request failed for signer: ${errorData.detail || signerResponse.statusText}`);
+        }
+      }
+
+      // Fund contract account directly (friendbot now supports C... addresses)
+      const contractUrl = `${config.stellar.friendbotUrl}?addr=${encodeURIComponent(address)}`;
+      const contractResponse = await fetch(contractUrl);
+
+      let contractResult = {};
+      if (contractResponse.ok) {
+        contractResult = await contractResponse.json().catch(() => ({}));
+      } else {
+        const errorData = await contractResponse.json().catch(() => ({}));
+        // Ignore "already funded" errors for contract
+        if (!errorData.detail?.includes('already funded')) {
+          throw new Error(`Friendbot request failed for contract: ${errorData.detail || contractResponse.statusText}`);
+        }
+      }
+
+      return {
+        signer: signerResult,
+        contract: contractResult,
+        message: 'Funded signer and smart wallet with 10,000 XLM each!'
+      };
+    }
+
+    // Classic account funding
+    const friendbotUrl = `${config.stellar.friendbotUrl}?addr=${encodeURIComponent(address)}`;
     const response = await fetch(friendbotUrl);
 
     if (!response.ok) {
       const errorData = await response.json();
-      if (errorData.detail && errorData.detail.includes('already funded')) {
-        if (!address.startsWith('C')) {
-          return { message: 'Account already funded!' };
-        }
-      } else {
-        throw new Error(`Friendbot request failed: ${errorData.detail || response.statusText}`);
+      if (errorData.detail?.includes('already funded')) {
+        return { message: 'Account already funded!' };
       }
+      throw new Error(`Friendbot request failed: ${errorData.detail || response.statusText}`);
     }
 
-    const friendbotResult = await response.json().catch(() => ({}));
-
-    // For smart wallets, transfer XLM using SAC (gasless or regular)
-    if (address.startsWith('C') && signerPublicKey) {
-      const transferAmount = '5000';
-      let transferResult;
-      if (gasless && isGaslessEnabled()) {
-        transferResult = await sendGaslessFromClassic(address, transferAmount);
-      } else {
-        transferResult = await buildSACTransfer(address, transferAmount);
-      }
-      return {
-        friendbot: friendbotResult,
-        transfer: transferResult,
-        message: `Funded signer with 10,000 XLM and transferred ${transferAmount} XLM to smart wallet${gasless ? ' (gasless)' : ''}!`
-      };
-    }
-
-    return friendbotResult;
+    return await response.json().catch(() => ({}));
   } catch (error) {
     throw new Error(`Failed to fund account: ${error.message}`);
   }
