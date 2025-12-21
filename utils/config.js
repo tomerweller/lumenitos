@@ -7,7 +7,8 @@
 const publicConfig = {
   stellar: {
     network: process.env.NEXT_PUBLIC_STELLAR_NETWORK || 'testnet',
-    sorobanRpcUrl: process.env.NEXT_PUBLIC_STELLAR_SOROBAN_RPC_URL || 'https://soroban-testnet.stellar.org',
+    // Use custom RPC with desc order support for getEvents, falls back to standard testnet RPC
+    sorobanRpcUrl: process.env.NEXT_PUBLIC_STELLAR_SOROBAN_RPC_URL || 'https://134-209-117-133.nip.io',
     friendbotUrl: process.env.NEXT_PUBLIC_STELLAR_FRIENDBOT_URL || 'https://friendbot.stellar.org',
     explorerUrl: process.env.NEXT_PUBLIC_STELLAR_EXPLORER_URL || 'https://stellar.expert/explorer/testnet',
     simpleAccountWasmHash: process.env.NEXT_PUBLIC_SIMPLE_ACCOUNT_WASM_HASH,
