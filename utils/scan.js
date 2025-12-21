@@ -7,35 +7,12 @@ import * as StellarSdk from '@stellar/stellar-sdk';
 import config from './config';
 import { stroopsToXlm, formatXlmBalance, scValToAddress, scValToAmount } from './stellar/helpers';
 
-// Standard testnet USDC issuer (Circle)
-const USDC_ISSUER_TESTNET = 'GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5';
-const USDC_ISSUER_MAINNET = 'GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN';
-
 /**
  * Create an RPC server for scan operations
  * Uses the shared RPC URL from config
  */
 function createScanRpcServer() {
   return new StellarSdk.rpc.Server(config.stellar.sorobanRpcUrl);
-}
-
-/**
- * Get the USDC SAC contract ID for the current network
- * @returns {string} The USDC SAC contract ID
- */
-export function getUsdcContractId() {
-  const issuer = config.isTestnet ? USDC_ISSUER_TESTNET : USDC_ISSUER_MAINNET;
-  const usdcAsset = new StellarSdk.Asset('USDC', issuer);
-  return usdcAsset.contractId(config.networkPassphrase);
-}
-
-/**
- * Get the XLM SAC contract ID
- * @returns {string} The XLM SAC contract ID
- */
-export function getXlmContractId() {
-  const xlmAsset = StellarSdk.Asset.native();
-  return xlmAsset.contractId(config.networkPassphrase);
 }
 
 /**
@@ -248,98 +225,64 @@ async function getLatestLedger() {
 }
 
 /**
- * Get recent transfers for an address using descending order
- * Fetches SEP-41 transfer events only for tracked token contracts
+ * Get recent transfers for an address (any token)
+ * Fetches SEP-41 transfer events without contract filtering
  * @param {string} address - Address to fetch transfers for
- * @param {string[]} contractIds - Array of token contract IDs to filter by
- * @param {number} limit - Maximum transfers to return per page
- * @param {number} beforeLedger - Optional ledger to start scanning backwards from (exclusive)
- * @returns {Promise<{transfers: Array, oldestLedger: number|null}>} Transfers and oldest ledger for pagination
+ * @param {number} limit - Maximum transfers to return (default 200)
+ * @returns {Promise<Array>} Array of parsed transfers
  */
-export async function getRecentTransfers(address, contractIds, limit = 5, beforeLedger = null) {
+export async function getRecentTransfers(address, limit = 1000) {
   try {
-    if (!contractIds || contractIds.length === 0) {
-      return { transfers: [], oldestLedger: null };
-    }
-
     // Create filter for transfer events where address is sender or receiver
     const transferSymbol = StellarSdk.nativeToScVal('transfer', { type: 'symbol' });
     const targetScVal = StellarSdk.nativeToScVal(StellarSdk.Address.fromString(address), {
       type: 'address',
     });
 
-    // RPC has a limit of 5 filters per request
-    // Each contract needs 2 filters (from and to), so we can do 2 contracts per request
-    const MAX_FILTERS = 5;
-    const FILTERS_PER_CONTRACT = 2;
-    const MAX_CONTRACTS_PER_REQUEST = Math.floor(MAX_FILTERS / FILTERS_PER_CONTRACT);
+    const startLedger = await getLatestLedger();
 
-    // Split contracts into batches
-    const batches = [];
-    for (let i = 0; i < contractIds.length; i += MAX_CONTRACTS_PER_REQUEST) {
-      batches.push(contractIds.slice(i, i + MAX_CONTRACTS_PER_REQUEST));
-    }
-
-    // Determine the starting ledger for scanning
-    // If beforeLedger is provided, start from there (exclusive - subtract 1)
-    // Otherwise start from the latest ledger
-    const startLedger = beforeLedger ? beforeLedger - 1 : await getLatestLedger();
-
-    // Fetch events from all batches in parallel
-    const allEvents = [];
-
-    await Promise.all(batches.map(async (batchContractIds) => {
-      // Build filters for this batch
-      const filters = [];
-      for (const contractId of batchContractIds) {
-        // Filter for transfers FROM the address for this contract
-        filters.push({
+    // Use 2 filters in a single call - filters are ORed together
+    // Filter 1: transfers FROM the address
+    // Filter 2: transfers TO the address
+    const result = await rpcCall('getEvents', {
+      startLedger: startLedger,
+      filters: [
+        {
           type: 'contract',
-          contractIds: [contractId],
           topics: [[transferSymbol.toXDR('base64'), targetScVal.toXDR('base64'), '*', '*']],
-        });
-        // Filter for transfers TO the address for this contract
-        filters.push({
+        },
+        {
           type: 'contract',
-          contractIds: [contractId],
           topics: [[transferSymbol.toXDR('base64'), '*', targetScVal.toXDR('base64'), '*']],
-        });
-      }
-
-      // With order: desc, startLedger is the UPPER bound (where we start scanning backwards from)
-      const result = await rpcCall('getEvents', {
-        startLedger: startLedger,
-        filters: filters,
-        pagination: {
-          limit: limit,
-          order: 'desc'
         }
-      });
-
-      if (result.events && result.events.length > 0) {
-        allEvents.push(...result.events);
+      ],
+      pagination: {
+        limit: limit,
+        order: 'desc'
       }
-    }));
+    });
 
-    if (allEvents.length === 0) {
-      return { transfers: [], oldestLedger: null };
-    }
-
-    // Sort all events by ledger descending and take top N
-    allEvents.sort((a, b) => b.ledger - a.ledger);
-    const topEvents = allEvents.slice(0, limit);
-
-    // Get the oldest ledger from the events we're returning (for next page)
-    const oldestLedger = topEvents.length > 0 ? topEvents[topEvents.length - 1].ledger : null;
-
-    return {
-      transfers: topEvents.map(event => parseTransferEvent(event, address)),
-      oldestLedger: topEvents.length < limit ? null : oldestLedger
-    };
+    const events = result.events || [];
+    return events.map(event => parseTransferEvent(event, address));
   } catch (error) {
     console.error('Error fetching transfer history:', error);
     throw error;
   }
+}
+
+/**
+ * Extract unique contract IDs from transfers
+ * @param {Array} transfers - Array of parsed transfers
+ * @returns {string[]} Array of unique contract IDs
+ */
+export function extractContractIds(transfers) {
+  const contractIds = new Set();
+  for (const t of transfers) {
+    if (t.contractId) {
+      contractIds.add(t.contractId);
+    }
+  }
+  return Array.from(contractIds);
 }
 
 /**
@@ -372,7 +315,7 @@ const SCAN_STORAGE_KEYS = {
 };
 
 /**
- * Get tracked assets from localStorage
+ * Get manually tracked assets from localStorage
  * @returns {Array<{contractId: string, symbol: string, name: string}>}
  */
 export function getTrackedAssets() {
@@ -398,7 +341,6 @@ export function addTrackedAsset(contractId, symbol, name) {
     return;
   }
   const assets = getTrackedAssets();
-  // Don't add duplicates
   if (!assets.find(a => a.contractId === contractId)) {
     assets.push({ contractId, symbol, name });
     localStorage.setItem(SCAN_STORAGE_KEYS.trackedAssets, JSON.stringify(assets));

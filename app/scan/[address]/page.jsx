@@ -6,9 +6,8 @@ import {
   isValidAddress,
   getTokenBalance,
   getTokenMetadata,
-  getXlmContractId,
-  getUsdcContractId,
   getRecentTransfers,
+  extractContractIds,
   getTrackedAssets,
   addTrackedAsset,
   removeTrackedAsset,
@@ -21,202 +20,94 @@ export default function AddressPage({ params }) {
   const { address } = use(params);
   const [balances, setBalances] = useState([]);
   const [transfers, setTransfers] = useState([]);
-  const [trackedAssets, setTrackedAssets] = useState([]);
   const [tokenSymbols, setTokenSymbols] = useState({});
-  const [loadingBalances, setLoadingBalances] = useState(true);
-  const [loadingTransfers, setLoadingTransfers] = useState(true);
-  const [balanceError, setBalanceError] = useState(null);
-  const [transferError, setTransferError] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(10);
   const [showAddAsset, setShowAddAsset] = useState(false);
   const [newAssetAddress, setNewAssetAddress] = useState('');
   const [addingAsset, setAddingAsset] = useState(false);
   const [addAssetError, setAddAssetError] = useState('');
-  const [copied, setCopied] = useState(false);
-  const [oldestLedger, setOldestLedger] = useState(null);
-  const [hasMoreTransfers, setHasMoreTransfers] = useState(true);
 
   const isValid = isValidAddress(address);
 
   useEffect(() => {
     if (isValid) {
-      loadBalances();
-      loadTransfers();
-      setTrackedAssets(getTrackedAssets());
+      loadData();
     }
   }, [address, isValid]);
 
-  const loadBalances = async () => {
-    setLoadingBalances(true);
-    setBalanceError(null);
+  const loadData = async () => {
+    setLoading(true);
+    setError(null);
+    setVisibleCount(10);
 
     try {
-      const xlmContractId = getXlmContractId();
-      const usdcContractId = getUsdcContractId();
-      const tracked = getTrackedAssets();
+      // Step 1: Fetch all transfers (up to 1000)
+      const transferList = await getRecentTransfers(address);
+      setTransfers(transferList);
 
+      // Step 2: Extract unique contract IDs from transfers + manually tracked assets
+      const autoContractIds = extractContractIds(transferList);
+      const manualAssets = getTrackedAssets();
+      const manualContractIds = manualAssets.map(a => a.contractId);
 
-      // Fetch XLM and USDC balances in parallel
-      const [xlmBalance, usdcBalance] = await Promise.all([
-        getTokenBalance(address, xlmContractId),
-        getTokenBalance(address, usdcContractId),
-      ]);
+      // Merge and dedupe contract IDs
+      const allContractIds = [...new Set([...autoContractIds, ...manualContractIds])];
 
-      const balanceList = [
-        { symbol: 'XLM', name: 'Stellar Lumens', balance: xlmBalance, contractId: xlmContractId, isDefault: true },
-        { symbol: 'USDC', name: 'USD Coin', balance: usdcBalance, contractId: usdcContractId, isDefault: true },
-      ];
-
-      // Fetch balances for tracked assets
-      for (const asset of tracked) {
-        try {
-          const balance = await getTokenBalance(address, asset.contractId);
-          balanceList.push({
-            symbol: asset.symbol,
-            name: asset.name,
-            balance,
-            contractId: asset.contractId,
-            isDefault: false,
-          });
-        } catch (e) {
-          console.error(`Error fetching balance for ${asset.symbol}:`, e);
-        }
+      if (allContractIds.length === 0) {
+        setBalances([]);
+        setLoading(false);
+        return;
       }
 
-      setBalances(balanceList);
-    } catch (error) {
-      console.error('Error loading balances:', error);
-      setBalanceError(error.message);
-    } finally {
-      setLoadingBalances(false);
-    }
-  };
-
-  const loadTransfers = async (beforeLedger = null, append = false) => {
-    setLoadingTransfers(true);
-    setTransferError(null);
-
-    try {
-      // Get tracked contract IDs (XLM, USDC, and custom tracked assets)
-      const xlmContractId = getXlmContractId();
-      const usdcContractId = getUsdcContractId();
-      const tracked = getTrackedAssets();
-      const trackedContractIds = [
-        xlmContractId,
-        usdcContractId,
-        ...tracked.map(a => a.contractId)
-      ];
-
-      // Fetch transfers using ledger-based pagination
-      const { transfers: transferList, oldestLedger: nextOldestLedger } = await getRecentTransfers(
-        address,
-        trackedContractIds,
-        5,
-        beforeLedger
+      // Step 3: Fetch metadata and balances for each token in parallel
+      const tokenData = await Promise.all(
+        allContractIds.map(async (contractId) => {
+          const isManual = manualContractIds.includes(contractId);
+          try {
+            const [metadata, balance] = await Promise.all([
+              getTokenMetadata(contractId),
+              getTokenBalance(address, contractId),
+            ]);
+            return {
+              contractId,
+              symbol: metadata.symbol === 'native' ? 'XLM' : metadata.symbol,
+              name: metadata.name,
+              balance,
+              isManual,
+            };
+          } catch (e) {
+            console.error(`Error fetching token data for ${contractId}:`, e);
+            return {
+              contractId,
+              symbol: '???',
+              name: 'Unknown',
+              balance: '0',
+              isManual,
+            };
+          }
+        })
       );
 
-      // Update transfers - append if loading more, replace if refreshing
-      if (append) {
-        setTransfers(prev => [...prev, ...transferList]);
-      } else {
-        setTransfers(transferList);
+      // Build symbol lookup map
+      const symbolMap = {};
+      for (const token of tokenData) {
+        symbolMap[token.contractId] = token.symbol;
       }
+      setTokenSymbols(symbolMap);
 
-      // Update oldest ledger and hasMore state
-      setOldestLedger(nextOldestLedger);
-      setHasMoreTransfers(transferList.length > 0 && nextOldestLedger !== null);
-
-      // Fetch symbols for contracts we don't already have (SEP-41)
-      const unknownContracts = transferList
-        .filter(t => t.contractId && !tokenSymbols[t.contractId])
-        .map(t => t.contractId);
-      const uniqueUnknown = [...new Set(unknownContracts)];
-
-      if (uniqueUnknown.length > 0) {
-        const newSymbols = {};
-        await Promise.all(
-          uniqueUnknown.map(async (contractId) => {
-            try {
-              const metadata = await getTokenMetadata(contractId);
-              newSymbols[contractId] = metadata.symbol;
-            } catch (e) {
-              newSymbols[contractId] = '???';
-            }
-          })
-        );
-        setTokenSymbols(prev => ({ ...prev, ...newSymbols }));
-      }
-    } catch (error) {
-      console.error('Error loading transfers:', error);
-      setTransferError(error.message);
+      // Filter out tokens with zero balance (unless manually tracked) and sort by symbol
+      const displayBalances = tokenData
+        .filter(t => t.balance !== '0' || t.isManual)
+        .sort((a, b) => a.symbol.localeCompare(b.symbol));
+      setBalances(displayBalances);
+    } catch (err) {
+      console.error('Error loading data:', err);
+      setError(err.message);
     } finally {
-      setLoadingTransfers(false);
-    }
-  };
-
-  const handleAddAsset = async (e) => {
-    e.preventDefault();
-    setAddAssetError('');
-    setAddingAsset(true);
-
-    const contractId = newAssetAddress.trim();
-
-    if (!contractId.startsWith('C') || !isValidAddress(contractId)) {
-      setAddAssetError('Invalid contract address. Must be a C... address');
-      setAddingAsset(false);
-      return;
-    }
-
-    // Check if already tracked
-    if (trackedAssets.find(a => a.contractId === contractId)) {
-      setAddAssetError('Asset already tracked');
-      setAddingAsset(false);
-      return;
-    }
-
-    // Check if it's XLM or USDC
-    if (contractId === getXlmContractId() || contractId === getUsdcContractId()) {
-      setAddAssetError('XLM and USDC are already shown by default');
-      setAddingAsset(false);
-      return;
-    }
-
-    try {
-      // Fetch token metadata
-      const metadata = await getTokenMetadata(contractId);
-
-      // Add to tracked assets
-      addTrackedAsset(contractId, metadata.symbol, metadata.name);
-      setTrackedAssets(getTrackedAssets());
-
-      // Fetch balance for the new asset
-      const balance = await getTokenBalance(address, contractId);
-      setBalances(prev => [...prev, {
-        symbol: metadata.symbol,
-        name: metadata.name,
-        balance,
-        contractId,
-        isDefault: false,
-      }]);
-
-      setNewAssetAddress('');
-      setShowAddAsset(false);
-    } catch (error) {
-      console.error('Error adding asset:', error);
-      setAddAssetError(`Failed to add asset: ${error.message}`);
-    } finally {
-      setAddingAsset(false);
-    }
-  };
-
-  const handleRemoveAsset = (contractId) => {
-    removeTrackedAsset(contractId);
-    setTrackedAssets(getTrackedAssets());
-    setBalances(prev => prev.filter(b => b.contractId !== contractId));
-  };
-
-  const handleShowMore = () => {
-    if (oldestLedger) {
-      loadTransfers(oldestLedger, true);
+      setLoading(false);
     }
   };
 
@@ -236,7 +127,7 @@ export default function AddressPage({ params }) {
     return `${addr.substring(0, 4)}..${addr.substring(addr.length - 4)}`;
   };
 
-  const formatAmount = (amount, decimals = 7) => {
+  const formatAmount = (amount) => {
     const num = stroopsToXlm(amount);
     return formatXlmBalance(num);
   };
@@ -247,9 +138,62 @@ export default function AddressPage({ params }) {
   };
 
   const getSymbol = (contractId) => {
-    const symbol = tokenSymbols[contractId] || '???';
-    // XLM SAC returns 'native' as symbol, display as 'XLM'
-    return symbol === 'native' ? 'XLM' : symbol;
+    return tokenSymbols[contractId] || '???';
+  };
+
+  const handleAddAsset = async (e) => {
+    e.preventDefault();
+    setAddAssetError('');
+    setAddingAsset(true);
+
+    const contractId = newAssetAddress.trim();
+
+    if (!contractId.startsWith('C') || !isValidAddress(contractId)) {
+      setAddAssetError('Invalid contract address. Must be a C... address');
+      setAddingAsset(false);
+      return;
+    }
+
+    // Check if already in balances
+    if (balances.find(b => b.contractId === contractId)) {
+      setAddAssetError('Asset already tracked');
+      setAddingAsset(false);
+      return;
+    }
+
+    try {
+      const [metadata, balance] = await Promise.all([
+        getTokenMetadata(contractId),
+        getTokenBalance(address, contractId),
+      ]);
+
+      // Add to localStorage
+      addTrackedAsset(contractId, metadata.symbol, metadata.name);
+
+      // Update balances state
+      const newBalance = {
+        contractId,
+        symbol: metadata.symbol === 'native' ? 'XLM' : metadata.symbol,
+        name: metadata.name,
+        balance,
+        isManual: true,
+      };
+      setBalances(prev => [...prev, newBalance].sort((a, b) => a.symbol.localeCompare(b.symbol)));
+      setTokenSymbols(prev => ({ ...prev, [contractId]: newBalance.symbol }));
+
+      setNewAssetAddress('');
+      setShowAddAsset(false);
+    } catch (error) {
+      console.error('Error adding asset:', error);
+      setAddAssetError(`Failed to add asset: ${error.message}`);
+    } finally {
+      setAddingAsset(false);
+    }
+  };
+
+  const handleRemoveAsset = (contractId) => {
+    removeTrackedAsset(contractId);
+    setBalances(prev => prev.filter(b => b.contractId !== contractId));
   };
 
   if (!isValid) {
@@ -295,107 +239,101 @@ export default function AddressPage({ params }) {
 
       <hr />
 
-      <h2>balances</h2>
-
-      {loadingBalances ? (
+      {loading ? (
         <p>loading...</p>
-      ) : balanceError ? (
-        <p className="error">error: {balanceError}</p>
+      ) : error ? (
+        <p className="error">error: {error}</p>
       ) : (
         <>
-          {balances.map((b) => (
-            <p key={b.contractId} className="balance-row">
-              <span className="balance-amount">{b.balance} {b.symbol}</span>
-              {!b.isDefault && (
-                <>
-                  {' '}
-                  (<a href="#" onClick={(e) => { e.preventDefault(); handleRemoveAsset(b.contractId); }}>remove</a>)
-                </>
-              )}
-            </p>
-          ))}
+          <h2>balances</h2>
+
+          {balances.length === 0 ? (
+            <p>no token balances found</p>
+          ) : (
+            balances.map((b) => (
+              <p key={b.contractId} className="balance-row">
+                <span className="balance-amount">{b.balance} {b.symbol}</span>
+                {b.isManual && (
+                  <>
+                    {' '}
+                    (<a href="#" onClick={(e) => { e.preventDefault(); handleRemoveAsset(b.contractId); }}>remove</a>)
+                  </>
+                )}
+              </p>
+            ))
+          )}
 
           <p>
             <a href="#" onClick={(e) => { e.preventDefault(); setShowAddAsset(true); }}>+ add asset</a>
-            {' | '}
-            <a href="#" onClick={(e) => { e.preventDefault(); loadBalances(); }}>refresh</a>
           </p>
-        </>
-      )}
 
-      {showAddAsset && (
-        <div className="modal-overlay" onClick={() => !addingAsset && setShowAddAsset(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>add asset</h3>
+          {showAddAsset && (
+            <div className="modal-overlay" onClick={() => !addingAsset && setShowAddAsset(false)}>
+              <div className="modal" onClick={(e) => e.stopPropagation()}>
+                <h3>add asset</h3>
 
-            <form onSubmit={handleAddAsset}>
-              <div className="form-group">
-                <label htmlFor="assetAddress">token contract address</label>
-                <input
-                  type="text"
-                  id="assetAddress"
-                  value={newAssetAddress}
-                  onChange={(e) => setNewAssetAddress(e.target.value)}
-                  placeholder="C..."
-                  disabled={addingAsset}
-                  autoComplete="off"
-                  spellCheck="false"
-                />
+                <form onSubmit={handleAddAsset}>
+                  <div className="form-group">
+                    <label htmlFor="assetAddress">token contract address</label>
+                    <input
+                      type="text"
+                      id="assetAddress"
+                      value={newAssetAddress}
+                      onChange={(e) => setNewAssetAddress(e.target.value)}
+                      placeholder="C..."
+                      disabled={addingAsset}
+                      autoComplete="off"
+                      spellCheck="false"
+                    />
+                  </div>
+
+                  {addAssetError && <p className="error">{addAssetError}</p>}
+
+                  <p>
+                    <a href="#" onClick={(e) => { e.preventDefault(); setShowAddAsset(false); setAddAssetError(''); setNewAssetAddress(''); }}>cancel</a>
+                    {' | '}
+                    <a href="#" onClick={handleAddAsset}>
+                      {addingAsset ? 'adding...' : 'add'}
+                    </a>
+                  </p>
+                </form>
+              </div>
+            </div>
+          )}
+
+          <hr />
+
+          <h2>transfers</h2>
+
+          {transfers.length === 0 ? (
+            <p>no transfers found</p>
+          ) : (
+            <>
+              <div className="transfer-list">
+                {transfers.slice(0, visibleCount).map((t, index) => (
+                  <p key={`${t.txHash}-${index}`} className="transfer-item">
+                    {t.direction === 'sent' ? (
+                      <>sent {formatAmount(t.amount)} {getSymbol(t.contractId)} to <Link href={`/scan/${t.counterparty}`}>{shortenAddressSmall(t.counterparty)}</Link></>
+                    ) : (
+                      <>received {formatAmount(t.amount)} {getSymbol(t.contractId)} from <Link href={`/scan/${t.counterparty}`}>{shortenAddressSmall(t.counterparty)}</Link></>
+                    )}
+                    <br />
+                    <small>{formatTimestamp(t.timestamp)}</small>
+                  </p>
+                ))}
               </div>
 
-              {addAssetError && <p className="error">{addAssetError}</p>}
-
               <p>
-                <a href="#" onClick={(e) => { e.preventDefault(); setShowAddAsset(false); setAddAssetError(''); setNewAssetAddress(''); }}>cancel</a>
-                {' | '}
-                <a href="#" onClick={handleAddAsset}>
-                  {addingAsset ? 'adding...' : 'add'}
-                </a>
+                {visibleCount < transfers.length && (
+                  <>
+                    <a href="#" onClick={(e) => { e.preventDefault(); setVisibleCount(v => v + 10); }}>show more</a>
+                    {' | '}
+                  </>
+                )}
+                <a href="#" onClick={(e) => { e.preventDefault(); loadData(); }}>refresh</a>
               </p>
-            </form>
-          </div>
-        </div>
-      )}
-
-      <hr />
-
-      <h2>transfers</h2>
-
-      {loadingTransfers ? (
-        <p>loading...</p>
-      ) : transferError ? (
-        <p className="error">error: {transferError}</p>
-      ) : transfers.length === 0 ? (
-        <p>no recent transfers found</p>
-      ) : (
-        <>
-          <div className="transfer-list">
-            {transfers.map((t, index) => (
-              <p key={`${t.txHash}-${index}`} className="transfer-item">
-                <a
-                  href={`${config.stellar.explorerUrl}/tx/${t.txHash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {t.direction === 'sent'
-                    ? `sent ${formatAmount(t.amount)} ${getSymbol(t.contractId)} to ${shortenAddressSmall(t.counterparty)}`
-                    : `received ${formatAmount(t.amount)} ${getSymbol(t.contractId)} from ${shortenAddressSmall(t.counterparty)}`}
-                </a>
-                <br />
-                <small>{formatTimestamp(t.timestamp)}</small>
-              </p>
-            ))}
-          </div>
-
-          <p>
-            {hasMoreTransfers && (
-              <>
-                <a href="#" onClick={(e) => { e.preventDefault(); handleShowMore(); }}>show more</a>
-                {' | '}
-              </>
-            )}
-            <a href="#" onClick={(e) => { e.preventDefault(); loadTransfers(); }}>refresh</a>
-          </p>
+            </>
+          )}
         </>
       )}
 
