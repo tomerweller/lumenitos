@@ -237,8 +237,9 @@ async function getLatestLedger() {
 /**
  * Get recent transfers for an address (any token)
  * Fetches SEP-41 transfer events without contract filtering
+ * Supports both 4-topic events (transfer, from, to, amount) and 3-topic events (transfer, from, to)
  * @param {string} address - Address to fetch transfers for
- * @param {number} limit - Maximum transfers to return (default 200)
+ * @param {number} limit - Maximum transfers to return (default 1000)
  * @returns {Promise<Array>} Array of parsed transfers
  */
 export async function getRecentTransfers(address, limit = 1000) {
@@ -252,18 +253,19 @@ export async function getRecentTransfers(address, limit = 1000) {
     const startLedger = await getLatestLedger();
 
     // Use 2 filters in a single call - filters are ORed together
-    // Filter 1: transfers FROM the address
-    // Filter 2: transfers TO the address
+    // Use ** for 4th topic to match both 3-topic and 4-topic events
     const result = await rpcCall('getEvents', {
       startLedger: startLedger,
       filters: [
+        // transfers FROM the address (3 or 4 topics)
         {
           type: 'contract',
-          topics: [[transferSymbol.toXDR('base64'), targetScVal.toXDR('base64'), '*', '*']],
+          topics: [[transferSymbol.toXDR('base64'), targetScVal.toXDR('base64'), '*', '**']],
         },
+        // transfers TO the address (3 or 4 topics)
         {
           type: 'contract',
-          topics: [[transferSymbol.toXDR('base64'), '*', targetScVal.toXDR('base64'), '*']],
+          topics: [[transferSymbol.toXDR('base64'), '*', targetScVal.toXDR('base64'), '**']],
         }
       ],
       pagination: {
@@ -298,6 +300,7 @@ export function extractContractIds(transfers) {
 /**
  * Get recent transfers for a specific token contract
  * Fetches SEP-41 transfer events for a specific contract
+ * Supports both 4-topic events (transfer, from, to, amount) and 3-topic events (transfer, from, to)
  * @param {string} tokenContractId - Token contract ID to fetch transfers for
  * @param {number} limit - Maximum transfers to return (default 1000)
  * @returns {Promise<Array>} Array of parsed transfers
@@ -308,13 +311,14 @@ export async function getTokenTransfers(tokenContractId, limit = 1000) {
     const startLedger = await getLatestLedger();
 
     // Filter for all transfer events from this specific contract
+    // Use ** for 4th topic to match both 3-topic and 4-topic events
     const result = await rpcCall('getEvents', {
       startLedger: startLedger,
       filters: [
         {
           type: 'contract',
           contractIds: [tokenContractId],
-          topics: [[transferSymbol.toXDR('base64'), '*', '*', '*']],
+          topics: [[transferSymbol.toXDR('base64'), '*', '*', '**']],
         }
       ],
       pagination: {
