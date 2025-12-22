@@ -286,6 +286,87 @@ export function extractContractIds(transfers) {
 }
 
 /**
+ * Get recent transfers for a specific token contract
+ * Fetches SEP-41 transfer events for a specific contract
+ * @param {string} tokenContractId - Token contract ID to fetch transfers for
+ * @param {number} limit - Maximum transfers to return (default 1000)
+ * @returns {Promise<Array>} Array of parsed transfers
+ */
+export async function getTokenTransfers(tokenContractId, limit = 1000) {
+  try {
+    const transferSymbol = StellarSdk.nativeToScVal('transfer', { type: 'symbol' });
+    const startLedger = await getLatestLedger();
+
+    // Filter for all transfer events from this specific contract
+    const result = await rpcCall('getEvents', {
+      startLedger: startLedger,
+      filters: [
+        {
+          type: 'contract',
+          contractIds: [tokenContractId],
+          topics: [[transferSymbol.toXDR('base64'), '*', '*', '*']],
+        }
+      ],
+      pagination: {
+        limit: limit,
+        order: 'desc'
+      }
+    });
+
+    const events = result.events || [];
+    // Parse events without a target address (shows all transfers)
+    return events.map(event => parseTransferEventGeneric(event));
+  } catch (error) {
+    console.error('Error fetching token transfers:', error);
+    throw error;
+  }
+}
+
+/**
+ * Parse a transfer event into structured format (generic, no target address)
+ * @param {object} event - The event from getEvents
+ * @returns {object} Parsed transfer info
+ */
+function parseTransferEventGeneric(event) {
+  const topics = (event.topic || []).map(topicXdr => {
+    try {
+      return StellarSdk.xdr.ScVal.fromXDR(topicXdr, 'base64');
+    } catch {
+      return null;
+    }
+  });
+
+  let from = 'unknown';
+  let to = 'unknown';
+  let amount = 0n;
+
+  if (topics.length >= 2 && topics[1]) {
+    from = scValToAddress(topics[1]);
+  }
+  if (topics.length >= 3 && topics[2]) {
+    to = scValToAddress(topics[2]);
+  }
+  if (event.value) {
+    try {
+      const valueScVal = StellarSdk.xdr.ScVal.fromXDR(event.value, 'base64');
+      amount = scValToAmount(valueScVal);
+    } catch {
+      amount = 0n;
+    }
+  }
+
+  return {
+    txHash: event.txHash,
+    ledger: event.ledger,
+    timestamp: event.ledgerClosedAt,
+    contractId: event.contractId,
+    from,
+    to,
+    amount
+  };
+}
+
+/**
  * Validate if a string is a valid Stellar address (G... or C...)
  * @param {string} address - The address to validate
  * @returns {boolean} Whether the address is valid
