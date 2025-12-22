@@ -244,16 +244,17 @@ export async function getRecentTransfers(address, limit = 1000) {
     // Use 2 filters in a single call - filters are ORed together
     // Filter 1: transfers FROM the address
     // Filter 2: transfers TO the address
+    // SEP-41 transfer events have 3 topics: [transfer, from, to], amount is in value
     const result = await rpcCall('getEvents', {
       startLedger: startLedger,
       filters: [
         {
           type: 'contract',
-          topics: [[transferSymbol.toXDR('base64'), targetScVal.toXDR('base64'), '*', '*']],
+          topics: [[transferSymbol.toXDR('base64'), targetScVal.toXDR('base64'), '*']],
         },
         {
           type: 'contract',
-          topics: [[transferSymbol.toXDR('base64'), '*', targetScVal.toXDR('base64'), '*']],
+          topics: [[transferSymbol.toXDR('base64'), '*', targetScVal.toXDR('base64')]],
         }
       ],
       pagination: {
