@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/health?bump=true&install=true",
+      "schedule": "0 0 * * *"
+    }
+  ]
+}
