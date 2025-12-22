@@ -5,7 +5,7 @@
 
 import * as StellarSdk from '@stellar/stellar-sdk';
 import config from './config';
-import { stroopsToXlm, formatXlmBalance, scValToAddress, scValToAmount } from './stellar/helpers';
+import { scValToAddress, scValToAmount } from './stellar/helpers';
 
 /**
  * Create an RPC server for scan operations
@@ -16,11 +16,11 @@ function createScanRpcServer() {
 }
 
 /**
- * Get balance for any SEP-41 token
+ * Get raw balance for any SEP-41 token
  * @param {string} address - The address to check (G... or C...)
  * @param {string} tokenContractId - The token contract ID
  * @param {object} deps - Dependencies
- * @returns {Promise<string>} The formatted balance
+ * @returns {Promise<string>} The raw balance as a string (not formatted)
  */
 export async function getTokenBalance(address, tokenContractId, { rpcServer } = {}) {
   rpcServer = rpcServer || createScanRpcServer();
@@ -45,9 +45,9 @@ export async function getTokenBalance(address, tokenContractId, { rpcServer } = 
 
     if (StellarSdk.rpc.Api.isSimulationSuccess(simulationResponse)) {
       const resultValue = simulationResponse.result.retval;
-      const balanceStroops = StellarSdk.scValToNative(resultValue);
-      const balance = stroopsToXlm(balanceStroops);
-      return formatXlmBalance(balance);
+      const rawBalance = StellarSdk.scValToNative(resultValue);
+      // Return raw balance as string (BigInt converted to string)
+      return rawBalance.toString();
     } else {
       return '0';
     }
@@ -59,12 +59,19 @@ export async function getTokenBalance(address, tokenContractId, { rpcServer } = 
 
 /**
  * Get token metadata (name, symbol, decimals) using SEP-41
+ * Uses localStorage cache since metadata never changes
  * @param {string} tokenContractId - The token contract ID
  * @param {object} deps - Dependencies
  * @returns {Promise<{name: string, symbol: string, decimals: number}>}
  * @throws {Error} If the contract doesn't exist or is not SEP-41 compliant
  */
 export async function getTokenMetadata(tokenContractId, { rpcServer } = {}) {
+  // Check cache first
+  const cached = getCachedMetadata(tokenContractId);
+  if (cached) {
+    return cached;
+  }
+
   rpcServer = rpcServer || createScanRpcServer();
 
   const placeholderKeypair = StellarSdk.Keypair.random();
@@ -128,6 +135,9 @@ export async function getTokenMetadata(tokenContractId, { rpcServer } = {}) {
   } catch (e) {
     // Decimals is optional, ignore errors
   }
+
+  // Cache the result
+  setCachedMetadata(tokenContractId, result);
 
   return result;
 }
@@ -393,7 +403,42 @@ export function isValidAddress(address) {
 // LocalStorage keys for scan
 const SCAN_STORAGE_KEYS = {
   trackedAssets: 'scan_tracked_assets',
+  tokenMetadataCache: 'scan_token_metadata_cache',
 };
+
+/**
+ * Get cached token metadata from localStorage
+ * @param {string} contractId - Token contract ID
+ * @returns {object|null} Cached metadata or null
+ */
+function getCachedMetadata(contractId) {
+  if (typeof window === 'undefined') return null;
+  try {
+    const cache = localStorage.getItem(SCAN_STORAGE_KEYS.tokenMetadataCache);
+    if (!cache) return null;
+    const parsed = JSON.parse(cache);
+    return parsed[contractId] || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Store token metadata in localStorage cache
+ * @param {string} contractId - Token contract ID
+ * @param {object} metadata - Metadata to cache
+ */
+function setCachedMetadata(contractId, metadata) {
+  if (typeof window === 'undefined') return;
+  try {
+    const cache = localStorage.getItem(SCAN_STORAGE_KEYS.tokenMetadataCache);
+    const parsed = cache ? JSON.parse(cache) : {};
+    parsed[contractId] = metadata;
+    localStorage.setItem(SCAN_STORAGE_KEYS.tokenMetadataCache, JSON.stringify(parsed));
+  } catch {
+    // Ignore cache errors
+  }
+}
 
 /**
  * Get manually tracked assets from localStorage

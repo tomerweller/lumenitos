@@ -7,7 +7,7 @@ import {
   getTokenMetadata,
   getTokenTransfers,
 } from '@/utils/scan';
-import { stroopsToXlm, formatXlmBalance } from '@/utils/stellar/helpers';
+import { rawToDisplay, formatTokenBalance } from '@/utils/stellar/helpers';
 import config from '@/utils/config';
 import '../../scan.css';
 
@@ -68,8 +68,9 @@ export default function TokenPage({ params }) {
   };
 
   const formatAmount = (amount) => {
-    const num = stroopsToXlm(amount);
-    return formatXlmBalance(num);
+    const decimals = metadata?.decimals ?? 7;
+    const displayAmount = rawToDisplay(amount, decimals);
+    return formatTokenBalance(displayAmount, decimals);
   };
 
   const formatTimestamp = (timestamp) => {

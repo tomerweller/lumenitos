@@ -12,7 +12,7 @@ import {
   addTrackedAsset,
   removeTrackedAsset,
 } from '@/utils/scan';
-import { stroopsToXlm, formatXlmBalance } from '@/utils/stellar/helpers';
+import { rawToDisplay, formatTokenBalance } from '@/utils/stellar/helpers';
 import config from '@/utils/config';
 import '../../scan.css';
 
@@ -20,7 +20,7 @@ export default function AccountPage({ params }) {
   const { address } = use(params);
   const [balances, setBalances] = useState([]);
   const [transfers, setTransfers] = useState([]);
-  const [tokenSymbols, setTokenSymbols] = useState({});
+  const [tokenInfo, setTokenInfo] = useState({}); // { contractId: { symbol, decimals } }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
@@ -67,15 +67,19 @@ export default function AccountPage({ params }) {
         allContractIds.map(async (contractId) => {
           const isManual = manualContractIds.includes(contractId);
           try {
-            const [metadata, balance] = await Promise.all([
+            const [metadata, rawBalance] = await Promise.all([
               getTokenMetadata(contractId),
               getTokenBalance(address, contractId),
             ]);
+            const decimals = metadata.decimals ?? 7;
+            const displayBalance = rawToDisplay(rawBalance, decimals);
             return {
               contractId,
               symbol: metadata.symbol === 'native' ? 'XLM' : metadata.symbol,
               name: metadata.name,
-              balance,
+              rawBalance,
+              balance: formatTokenBalance(displayBalance, decimals),
+              decimals,
               isManual,
             };
           } catch (e) {
@@ -84,23 +88,25 @@ export default function AccountPage({ params }) {
               contractId,
               symbol: '???',
               name: 'Unknown',
+              rawBalance: '0',
               balance: '0',
+              decimals: 7,
               isManual,
             };
           }
         })
       );
 
-      // Build symbol lookup map
-      const symbolMap = {};
+      // Build token info lookup map (symbol + decimals)
+      const infoMap = {};
       for (const token of tokenData) {
-        symbolMap[token.contractId] = token.symbol;
+        infoMap[token.contractId] = { symbol: token.symbol, decimals: token.decimals };
       }
-      setTokenSymbols(symbolMap);
+      setTokenInfo(infoMap);
 
       // Filter out tokens with zero balance (unless manually tracked) and sort by symbol
       const displayBalances = tokenData
-        .filter(t => t.balance !== '0' || t.isManual)
+        .filter(t => t.rawBalance !== '0' || t.isManual)
         .sort((a, b) => a.symbol.localeCompare(b.symbol));
       setBalances(displayBalances);
     } catch (err) {
@@ -127,9 +133,11 @@ export default function AccountPage({ params }) {
     return `${addr.substring(0, 4)}..${addr.substring(addr.length - 4)}`;
   };
 
-  const formatAmount = (amount) => {
-    const num = stroopsToXlm(amount);
-    return formatXlmBalance(num);
+  const formatAmount = (amount, contractId) => {
+    const info = tokenInfo[contractId];
+    const decimals = info?.decimals ?? 7;
+    const displayAmount = rawToDisplay(amount, decimals);
+    return formatTokenBalance(displayAmount, decimals);
   };
 
   const formatTimestamp = (timestamp) => {
@@ -138,7 +146,7 @@ export default function AccountPage({ params }) {
   };
 
   const getSymbol = (contractId) => {
-    return tokenSymbols[contractId] || '???';
+    return tokenInfo[contractId]?.symbol || '???';
   };
 
   const handleAddAsset = async (e) => {
@@ -162,10 +170,13 @@ export default function AccountPage({ params }) {
     }
 
     try {
-      const [metadata, balance] = await Promise.all([
+      const [metadata, rawBalance] = await Promise.all([
         getTokenMetadata(contractId),
         getTokenBalance(address, contractId),
       ]);
+
+      const decimals = metadata.decimals ?? 7;
+      const displayBalance = rawToDisplay(rawBalance, decimals);
 
       // Add to localStorage
       addTrackedAsset(contractId, metadata.symbol, metadata.name);
@@ -175,11 +186,13 @@ export default function AccountPage({ params }) {
         contractId,
         symbol: metadata.symbol === 'native' ? 'XLM' : metadata.symbol,
         name: metadata.name,
-        balance,
+        rawBalance,
+        balance: formatTokenBalance(displayBalance, decimals),
+        decimals,
         isManual: true,
       };
       setBalances(prev => [...prev, newBalance].sort((a, b) => a.symbol.localeCompare(b.symbol)));
-      setTokenSymbols(prev => ({ ...prev, [contractId]: newBalance.symbol }));
+      setTokenInfo(prev => ({ ...prev, [contractId]: { symbol: newBalance.symbol, decimals } }));
 
       setNewAssetAddress('');
       setShowAddAsset(false);
@@ -322,9 +335,9 @@ export default function AccountPage({ params }) {
                 {transfers.slice(0, visibleCount).map((t, index) => (
                   <p key={`${t.txHash}-${index}`} className="transfer-item">
                     {t.direction === 'sent' ? (
-                      <>sent {formatAmount(t.amount)} <Link href={`/scan/${t.contractId}/token`}>{getSymbol(t.contractId)}</Link> to <Link href={`/scan/${t.counterparty}/account`}>{shortenAddressSmall(t.counterparty)}</Link></>
+                      <>sent {formatAmount(t.amount, t.contractId)} <Link href={`/scan/${t.contractId}/token`}>{getSymbol(t.contractId)}</Link> to <Link href={`/scan/${t.counterparty}/account`}>{shortenAddressSmall(t.counterparty)}</Link></>
                     ) : (
-                      <>received {formatAmount(t.amount)} <Link href={`/scan/${t.contractId}/token`}>{getSymbol(t.contractId)}</Link> from <Link href={`/scan/${t.counterparty}/account`}>{shortenAddressSmall(t.counterparty)}</Link></>
+                      <>received {formatAmount(t.amount, t.contractId)} <Link href={`/scan/${t.contractId}/token`}>{getSymbol(t.contractId)}</Link> from <Link href={`/scan/${t.counterparty}/account`}>{shortenAddressSmall(t.counterparty)}</Link></>
                     )}
                     <br />
                     <small>{formatTimestamp(t.timestamp)} (<a href={`${config.stellar.explorerUrl}/tx/${t.txHash}`} target="_blank" rel="noopener noreferrer">{t.txHash?.substring(0, 4)}</a>)</small>

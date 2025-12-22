@@ -93,6 +93,8 @@ export {
   stroopsToXlm,
   xlmToStroops,
   formatXlmBalance,
+  rawToDisplay,
+  formatTokenBalance,
   buildInstanceLedgerKey,
   buildCodeLedgerKey,
   buildBalanceLedgerKey,

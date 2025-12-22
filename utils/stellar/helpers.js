@@ -61,6 +61,30 @@ export function stroopsToXlm(stroops) {
 }
 
 /**
+ * Convert raw token amount to display amount based on decimals
+ * @param {bigint | number | string} rawAmount - Raw amount from contract
+ * @param {number} decimals - Token decimals (default 7)
+ * @returns {number} Display amount
+ */
+export function rawToDisplay(rawAmount, decimals = 7) {
+  return Number(rawAmount) / Math.pow(10, decimals);
+}
+
+/**
+ * Format token balance for display
+ * @param {number} balance - Balance as a number
+ * @param {number} decimals - Token decimals for precision (default 7)
+ * @returns {string} Formatted balance
+ */
+export function formatTokenBalance(balance, decimals = 7) {
+  if (balance === 0) {
+    return '0';
+  }
+  // Use token's decimals for precision, but trim trailing zeros
+  return balance.toFixed(decimals).replace(/\.?0+$/, '');
+}
+
+/**
  * Convert XLM to stroops
  * @param {string | number} xlm - Amount in XLM
  * @returns {number} Amount in stroops (integer)
