@@ -203,7 +203,7 @@ export default function AccountPage({ params }) {
         <p className={`network-label ${config.isTestnet ? 'testnet' : 'mainnet'}`}>
           {config.isTestnet ? config.stellar.network : 'MAINNET'}
         </p>
-        <p className="subtitle">mini block explorer</p>
+        <p className="subtitle">mini token explorer</p>
 
         <hr />
 
@@ -222,7 +222,7 @@ export default function AccountPage({ params }) {
       <p className={`network-label ${config.isTestnet ? 'testnet' : 'mainnet'}`}>
         {config.isTestnet ? config.stellar.network : 'MAINNET'}
       </p>
-      <p className="subtitle">mini block explorer</p>
+      <p className="subtitle">mini token explorer</p>
 
       <hr />
 
@@ -327,7 +327,7 @@ export default function AccountPage({ params }) {
                       <>received {formatAmount(t.amount)} <Link href={`/scan/${t.contractId}/token`}>{getSymbol(t.contractId)}</Link> from <Link href={`/scan/${t.counterparty}/account`}>{shortenAddressSmall(t.counterparty)}</Link></>
                     )}
                     <br />
-                    <small>{formatTimestamp(t.timestamp)}</small>
+                    <small>{formatTimestamp(t.timestamp)} (<a href={`${config.stellar.explorerUrl}/tx/${t.txHash}`} target="_blank" rel="noopener noreferrer">{t.txHash?.substring(0, 4)}</a>)</small>
                   </p>
                 ))}
               </div>

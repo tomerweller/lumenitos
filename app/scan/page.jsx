@@ -63,7 +63,7 @@ export default function ScanPage() {
       <p className={`network-label ${config.isTestnet ? 'testnet' : 'mainnet'}`}>
         {config.isTestnet ? config.stellar.network : 'MAINNET'}
       </p>
-      <p className="subtitle">mini block explorer</p>
+      <p className="subtitle">mini token explorer</p>
 
       <hr />
 

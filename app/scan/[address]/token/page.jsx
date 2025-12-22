@@ -89,7 +89,7 @@ export default function TokenPage({ params }) {
         <p className={`network-label ${config.isTestnet ? 'testnet' : 'mainnet'}`}>
           {config.isTestnet ? config.stellar.network : 'MAINNET'}
         </p>
-        <p className="subtitle">mini block explorer</p>
+        <p className="subtitle">mini token explorer</p>
 
         <hr />
 
@@ -112,7 +112,7 @@ export default function TokenPage({ params }) {
       <p className={`network-label ${config.isTestnet ? 'testnet' : 'mainnet'}`}>
         {config.isTestnet ? config.stellar.network : 'MAINNET'}
       </p>
-      <p className="subtitle">mini block explorer</p>
+      <p className="subtitle">mini token explorer</p>
 
       <hr />
 
@@ -162,7 +162,7 @@ export default function TokenPage({ params }) {
                     {': '}
                     {formatAmount(t.amount)} {getSymbol()}
                     <br />
-                    <small>{formatTimestamp(t.timestamp)}</small>
+                    <small>{formatTimestamp(t.timestamp)} (<a href={`${config.stellar.explorerUrl}/tx/${t.txHash}`} target="_blank" rel="noopener noreferrer">{t.txHash?.substring(0, 4)}</a>)</small>
                   </p>
                 ))}
               </div>
