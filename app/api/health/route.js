@@ -15,6 +15,7 @@ import * as StellarSdk from '@stellar/stellar-sdk';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import config from '@/utils/config';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Allow up to 60s for TTL operations
@@ -25,11 +26,9 @@ const TTL_BUMP_THRESHOLD = 50000;
 const MAX_TTL_EXTENSION = 500000;
 
 function getConfig() {
-  const network = process.env.NEXT_PUBLIC_STELLAR_NETWORK || 'testnet';
-  const rpcUrl = process.env.NEXT_PUBLIC_STELLAR_SOROBAN_RPC_URL || 'https://soroban-testnet.stellar.org';
-  const networkPassphrase = network === 'mainnet'
-    ? 'Public Global Stellar Network ; September 2015'
-    : 'Test SDF Network ; September 2015';
+  const network = config.stellar.network;
+  const rpcUrl = config.stellar.sorobanRpcUrl;
+  const networkPassphrase = config.networkPassphrase;
   const factoryAddress = process.env.NEXT_PUBLIC_ACCOUNT_FACTORY_ADDRESS;
   const factoryWasmHash = process.env.NEXT_PUBLIC_ACCOUNT_FACTORY_WASM_HASH;
   const adminSecret = process.env.STELLAR_WASM_ADMIN_SECRET;
