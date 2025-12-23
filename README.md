@@ -1,14 +1,21 @@
 # Lumenitos
 
-A minimalist Stellar smart wallet built with Next.js and Soroban.
+A minimalist Stellar smart wallet and token explorer built with Next.js and Soroban.
 
 **Live Demo:**
 - **Testnet:** https://lumenitos-testnet.vercel.app/
 - **Mainnet:** https://lumenitos.vercel.app/ ⚠️ **REAL FUNDS - USE AT YOUR OWN RISK**
 
-## Overview
+## Features
 
-Lumenitos is an experimental Stellar smart wallet that combines local key management with a custom Soroban contract account. It provides a simple, text-based interface for creating and managing Stellar wallets.
+Lumenitos includes two main features:
+
+- **Wallet** (`/wallet`) - Self-custodied smart wallet with local key management
+- **Scan** (`/scan`) - Mini token explorer for viewing balances and transfer history
+
+## Wallet
+
+Lumenitos Wallet is an experimental Stellar smart wallet that combines local key management with a custom Soroban contract account. It provides a simple, text-based interface for creating and managing Stellar wallets.
 
 ### Dual Account Architecture
 
@@ -38,7 +45,29 @@ Both accounts can send and receive XLM independently, with balances fetched dire
   - View and extend contract TTLs (time-to-live) for instance, code, and balance entries
   - Fund testnet accounts via Friendbot
   - Progressive Web App (PWA) support for mobile
-- **Gasless Transactions** (optional): Fee-free contract account transfers via [OpenZeppelin Channels](https://docs.openzeppelin.com/relayer/1.2.x/plugins/channels)
+- **Gasless Transactions** (optional): Fee-free transfers via [OpenZeppelin Channels](https://docs.openzeppelin.com/relayer/1.2.x/plugins/channels) (works for both classic and contract accounts)
+
+## Scan
+
+Lumenitos Scan is a mini token explorer for viewing any Stellar address's token balances and transfer history.
+
+### Scan Features
+
+- **Account View** (`/scan/account/[address]`) - View balances and transfers for any G... or C... address
+- **Token View** (`/scan/token/[address]`) - View token metadata and recent transfers for any SEP-41 token
+- **SEP-41 Support** - Works with any SEP-41 compliant token (XLM, USDC, custom tokens)
+- **Auto-Discovery** - Automatically discovers tokens from transfer history
+- **Manual Asset Tracking** - Add any token contract to track its balance
+- **Metadata Caching** - Token metadata (name, symbol, decimals) cached in localStorage
+- **Proper Decimals** - Displays amounts using each token's actual decimal precision
+
+### Scan Routes
+
+| Route | Description |
+|-------|-------------|
+| `/scan` | Search page - enter any address |
+| `/scan/account/[address]` | Account view - balances and transfers |
+| `/scan/token/[address]` | Token view - token info and recent transfers |
 
 ## Architecture
 
@@ -154,11 +183,20 @@ Click the "fund" link to use Stellar's Friendbot to add testnet XLM to your wall
 ```
 lumenitos/
 ├── app/
-│   ├── page.jsx              # Main app component
+│   ├── page.jsx              # Root redirect to /wallet
 │   ├── layout.js             # Root layout with PWA support
-│   ├── ServiceWorkerRegistration.jsx  # Service worker registration
 │   ├── globals.css           # Global styles
-│   └── manifest.json/route.js  # Dynamic PWA manifest
+│   ├── wallet/               # Wallet feature
+│   │   ├── page.jsx          # Wallet main page
+│   │   └── App.css           # Wallet styles
+│   ├── scan/                 # Scan feature
+│   │   ├── page.jsx          # Scan search page
+│   │   ├── scan.css          # Scan styles
+│   │   ├── [address]/page.jsx        # Redirect to /scan/account/[address]
+│   │   ├── account/[address]/page.jsx # Account view
+│   │   └── token/[address]/page.jsx   # Token view
+│   └── api/
+│       └── health/route.js   # Health check endpoint
 ├── components/
 │   ├── WalletSetup.jsx       # Initial setup component
 │   ├── WalletDashboard.jsx   # Main wallet interface
@@ -166,25 +204,25 @@ lumenitos/
 ├── contracts/
 │   ├── simple_account/       # Custom account contract
 │   │   ├── src/lib.rs        # Contract with __check_auth
-│   │   ├── Cargo.toml        # Rust dependencies
 │   │   └── out/              # Compiled WASM artifact
 │   └── account_factory/      # Factory for deploying accounts
 │       ├── src/lib.rs        # Factory with create() function
-│       ├── Cargo.toml        # Rust dependencies
 │       └── out/              # Compiled WASM artifact
 ├── utils/
 │   ├── config.js             # Configuration management
-│   └── stellar/              # Modular Stellar utilities
-│       ├── index.js          # Public API exports
-│       ├── storage.js        # Storage abstraction (localStorage/memory)
-│       ├── rpc.js            # RPC client factory
-│       ├── keypair.js        # Keypair derivation and management
-│       ├── helpers.js        # Conversion utilities
-│       ├── balance.js        # Balance queries
-│       ├── transfer.js       # Transfer operations
-│       ├── contract.js       # Contract deployment and auth
-│       ├── ttl.js            # TTL management
-│       └── gasless.js        # Gasless transfers via OZ Channels
+│   ├── stellar/              # Wallet Stellar utilities
+│   │   ├── index.js          # Public API exports
+│   │   ├── storage.js        # Storage abstraction
+│   │   ├── rpc.js            # RPC client factory
+│   │   ├── keypair.js        # Keypair derivation and management
+│   │   ├── helpers.js        # Conversion utilities
+│   │   ├── balance.js        # Balance queries
+│   │   ├── transfer.js       # Transfer operations
+│   │   ├── contract.js       # Contract deployment and auth
+│   │   ├── ttl.js            # TTL management
+│   │   └── gasless.js        # Gasless transfers via OZ Channels
+│   └── scan/                 # Scan utilities
+│       └── index.js          # Token balances, transfers, metadata
 ├── scripts/
 │   └── compute-wasm-hash.js  # Compute WASM hash at build time
 ├── __tests__/
@@ -194,8 +232,7 @@ lumenitos/
 ├── e2e/                      # Playwright E2E tests
 └── public/
     ├── sw.js                 # Service worker
-    ├── icon-192.png          # PWA icon (192x192)
-    └── icon-512.png          # PWA icon (512x512)
+    └── icon-*.png            # PWA icons
 ```
 
 ## Technology Stack
