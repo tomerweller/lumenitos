@@ -1,11 +1,12 @@
 'use client'
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { QRCodeSVG } from 'qrcode.react';
 import { Scanner } from '@yudiel/react-qr-scanner';
 import { MuxedAccount } from '@stellar/stellar-sdk';
 import config from '../utils/config';
-import { getContractTTLs, getTransferHistory, getMnemonic, bumpInstanceTTL, bumpCodeTTL, bumpBalanceTTL, bumpFactoryInstanceTTL, bumpFactoryCodeTTL } from '../utils/stellar/index';
+import { getContractTTLs, getMnemonic, bumpInstanceTTL, bumpCodeTTL, bumpBalanceTTL, bumpFactoryInstanceTTL, bumpFactoryCodeTTL } from '../utils/stellar/index';
 import './WalletDashboard.css';
 
 function WalletDashboard({
@@ -40,17 +41,11 @@ function WalletDashboard({
   const [bumpingBalance, setBumpingBalance] = useState(false);
   const [bumpingFactoryInstance, setBumpingFactoryInstance] = useState(false);
   const [bumpingFactoryCode, setBumpingFactoryCode] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
-  const [showClassicHistory, setShowClassicHistory] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [importMnemonic, setImportMnemonic] = useState('');
   const [importError, setImportError] = useState('');
   const [importing, setImporting] = useState(false);
-  const [historyData, setHistoryData] = useState(null);
-  const [classicHistoryData, setClassicHistoryData] = useState(null);
-  const [loadingHistory, setLoadingHistory] = useState(false);
-  const [loadingClassicHistory, setLoadingClassicHistory] = useState(false);
   const [destination, setDestination] = useState('');
   const [amount, setAmount] = useState('');
   const [classicDestination, setClassicDestination] = useState('');
@@ -97,11 +92,7 @@ function WalletDashboard({
     setShowClassicScanner(false);
     setShowTTLs(false);
     setTtlData(null);
-    setShowHistory(false);
-    setShowClassicHistory(false);
     setShowExport(false);
-    setHistoryData(null);
-    setClassicHistoryData(null);
     setDestination('');
     setAmount('');
     setSending(false);
@@ -346,38 +337,6 @@ function WalletDashboard({
     }
   };
 
-  const handleShowHistory = async (e) => {
-    e.preventDefault();
-    setShowHistory(true);
-    setLoadingHistory(true);
-    setHistoryData(null);
-    try {
-      const data = await getTransferHistory(walletAddress, 5);
-      setHistoryData(data);
-    } catch (error) {
-      console.error('Error fetching history:', error);
-      setHistoryData({ error: error.message });
-    } finally {
-      setLoadingHistory(false);
-    }
-  };
-
-  const handleShowClassicHistory = async (e) => {
-    e.preventDefault();
-    setShowClassicHistory(true);
-    setLoadingClassicHistory(true);
-    setClassicHistoryData(null);
-    try {
-      const data = await getTransferHistory(publicKey, 5);
-      setClassicHistoryData(data);
-    } catch (error) {
-      console.error('Error fetching classic history:', error);
-      setClassicHistoryData({ error: error.message });
-    } finally {
-      setLoadingClassicHistory(false);
-    }
-  };
-
   const handleImport = async (e) => {
     e.preventDefault();
     setImportError('');
@@ -391,16 +350,6 @@ function WalletDashboard({
     } finally {
       setImporting(false);
     }
-  };
-
-  const shortenAddressForHistory = (address) => {
-    if (!address || address.length < 12) return address;
-    return `${address.substring(0, 4)}..${address.substring(address.length - 4)}`;
-  };
-
-  const formatAmountForHistory = (amount) => {
-    if (amount === 0) return '0';
-    return amount.toFixed(7).replace(/\.?0+$/, '');
   };
 
   // Show generate wallet link if no wallet exists
@@ -499,11 +448,7 @@ function WalletDashboard({
         {' | '}
         <a href="#" onClick={(e) => { e.preventDefault(); setShowClassicSend(true); }}>send</a>
         {' | '}
-        <a href={`${config.stellar.explorerUrl}/account/${publicKey}`} target="_blank" rel="noopener noreferrer">
-          explore
-        </a>
-        {' | '}
-        <a href="#" onClick={handleShowClassicHistory}>history</a>
+        <Link href={`/scan/account/${publicKey}`}>scan</Link>
       </p>
 
       <hr />
@@ -524,11 +469,7 @@ function WalletDashboard({
         {' | '}
         <a href="#" onClick={(e) => { e.preventDefault(); setShowSend(true); }}>send</a>
         {' | '}
-        <a href={`${config.stellar.explorerUrl}/contract/${walletAddress}`} target="_blank" rel="noopener noreferrer">
-          explore
-        </a>
-        {' | '}
-        <a href="#" onClick={handleShowHistory}>history</a>
+        <Link href={`/scan/account/${walletAddress}`}>scan</Link>
         {' | '}
         <a href="#" onClick={handleShowTTLs}>ttls</a>
       </p>
@@ -826,82 +767,6 @@ function WalletDashboard({
 
             <p>
               <a href="#" onClick={(e) => { e.preventDefault(); setShowTTLs(false); }}>close</a>
-            </p>
-          </div>
-        </div>
-      )}
-
-      {showHistory && (
-        <div className="modal-overlay" onClick={() => setShowHistory(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>transfer history</h3>
-
-            {loadingHistory ? (
-              <p>loading...</p>
-            ) : historyData?.error ? (
-              <p>error: {historyData.error}</p>
-            ) : historyData && historyData.length > 0 ? (
-              <div className="history-list">
-                {historyData.map((transfer, index) => (
-                  <p key={index} className="history-item">
-                    <a
-                      href={`${config.stellar.explorerUrl}/tx/${transfer.txHash}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {transfer.direction === 'sent'
-                        ? `sent ${formatAmountForHistory(transfer.amountXLM)} XLM to ${shortenAddressForHistory(transfer.counterparty)}`
-                        : `received ${formatAmountForHistory(transfer.amountXLM)} XLM from ${shortenAddressForHistory(transfer.counterparty)}`}
-                    </a>
-                    <br />
-                    <small>{new Date(transfer.timestamp).toLocaleString()}</small>
-                  </p>
-                ))}
-              </div>
-            ) : historyData && historyData.length === 0 ? (
-              <p>no recent transfers found</p>
-            ) : null}
-
-            <p>
-              <a href="#" onClick={(e) => { e.preventDefault(); setShowHistory(false); }}>close</a>
-            </p>
-          </div>
-        </div>
-      )}
-
-      {showClassicHistory && (
-        <div className="modal-overlay" onClick={() => setShowClassicHistory(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>transfer history</h3>
-
-            {loadingClassicHistory ? (
-              <p>loading...</p>
-            ) : classicHistoryData?.error ? (
-              <p>error: {classicHistoryData.error}</p>
-            ) : classicHistoryData && classicHistoryData.length > 0 ? (
-              <div className="history-list">
-                {classicHistoryData.map((transfer, index) => (
-                  <p key={index} className="history-item">
-                    <a
-                      href={`${config.stellar.explorerUrl}/tx/${transfer.txHash}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {transfer.direction === 'sent'
-                        ? `sent ${formatAmountForHistory(transfer.amountXLM)} XLM to ${shortenAddressForHistory(transfer.counterparty)}`
-                        : `received ${formatAmountForHistory(transfer.amountXLM)} XLM from ${shortenAddressForHistory(transfer.counterparty)}`}
-                    </a>
-                    <br />
-                    <small>{new Date(transfer.timestamp).toLocaleString()}</small>
-                  </p>
-                ))}
-              </div>
-            ) : classicHistoryData && classicHistoryData.length === 0 ? (
-              <p>no recent transfers found</p>
-            ) : null}
-
-            <p>
-              <a href="#" onClick={(e) => { e.preventDefault(); setShowClassicHistory(false); }}>close</a>
             </p>
           </div>
         </div>
