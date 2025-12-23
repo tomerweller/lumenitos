@@ -252,7 +252,7 @@ export default function AccountPage({ params }) {
 
       {address.startsWith('C') && (
         <p>
-          <Link href={`/scan/${address}/token`}>switch to token view</Link>
+          <Link href={`/scan/token/${address}`}>switch to token view</Link>
         </p>
       )}
 
@@ -273,7 +273,7 @@ export default function AccountPage({ params }) {
               <p key={b.contractId} className="balance-row">
                 <span className="balance-amount">
                   {b.balance}{' '}
-                  <Link href={`/scan/${b.contractId}/token`}>{b.symbol}</Link>
+                  <Link href={`/scan/token/${b.contractId}`}>{b.symbol}</Link>
                 </span>
                 {b.isManual && (
                   <>
@@ -335,9 +335,9 @@ export default function AccountPage({ params }) {
                 {transfers.slice(0, visibleCount).map((t, index) => (
                   <p key={`${t.txHash}-${index}`} className="transfer-item">
                     {t.direction === 'sent' ? (
-                      <>sent {formatAmount(t.amount, t.contractId)} <Link href={`/scan/${t.contractId}/token`}>{getSymbol(t.contractId)}</Link> to <Link href={`/scan/${t.counterparty}/account`}>{shortenAddressSmall(t.counterparty)}</Link></>
+                      <>sent {formatAmount(t.amount, t.contractId)} <Link href={`/scan/token/${t.contractId}`}>{getSymbol(t.contractId)}</Link> to <Link href={`/scan/account/${t.counterparty}`}>{shortenAddressSmall(t.counterparty)}</Link></>
                     ) : (
-                      <>received {formatAmount(t.amount, t.contractId)} <Link href={`/scan/${t.contractId}/token`}>{getSymbol(t.contractId)}</Link> from <Link href={`/scan/${t.counterparty}/account`}>{shortenAddressSmall(t.counterparty)}</Link></>
+                      <>received {formatAmount(t.amount, t.contractId)} <Link href={`/scan/token/${t.contractId}`}>{getSymbol(t.contractId)}</Link> from <Link href={`/scan/account/${t.counterparty}`}>{shortenAddressSmall(t.counterparty)}</Link></>
                     )}
                     <br />
                     <small>{formatTimestamp(t.timestamp)} (<a href={`${config.stellar.explorerUrl}/tx/${t.txHash}`} target="_blank" rel="noopener noreferrer">{t.txHash?.substring(0, 4)}</a>)</small>

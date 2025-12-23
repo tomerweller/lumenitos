@@ -129,7 +129,7 @@ export default function TokenPage({ params }) {
       </p>
 
       <p>
-        <Link href={`/scan/${address}/account`}>switch to account view</Link>
+        <Link href={`/scan/account/${address}`}>switch to account view</Link>
       </p>
 
       <hr />
@@ -157,9 +157,9 @@ export default function TokenPage({ params }) {
               <div className="transfer-list">
                 {transfers.slice(0, visibleCount).map((t, index) => (
                   <p key={`${t.txHash}-${index}`} className="transfer-item">
-                    <Link href={`/scan/${t.from}/account`}>{shortenAddressSmall(t.from)}</Link>
+                    <Link href={`/scan/account/${t.from}`}>{shortenAddressSmall(t.from)}</Link>
                     {' -> '}
-                    <Link href={`/scan/${t.to}/account`}>{shortenAddressSmall(t.to)}</Link>
+                    <Link href={`/scan/account/${t.to}`}>{shortenAddressSmall(t.to)}</Link>
                     {': '}
                     {formatAmount(t.amount)} {getSymbol()}
                     <br />
