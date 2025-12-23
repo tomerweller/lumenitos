@@ -4,8 +4,8 @@
  */
 
 import * as StellarSdk from '@stellar/stellar-sdk';
-import config from './config';
-import { scValToAddress, scValToAmount } from './stellar/helpers';
+import config from '../config';
+import { scValToAddress, scValToAmount } from '../stellar/helpers';
 
 /**
  * Create an RPC server for scan operations
