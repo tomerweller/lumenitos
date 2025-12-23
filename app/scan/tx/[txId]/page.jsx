@@ -2,8 +2,12 @@
 
 import React, { useState, useEffect, use } from 'react';
 import Link from 'next/link';
-import { getTransaction, initXdrDecoder, decodeXdr } from '@/utils/scan';
+import { getTransaction, initXdrDecoder, decodeXdr, getTokenMetadata } from '@/utils/scan';
+import { rawToDisplay, formatTokenBalance } from '@/utils/stellar/helpers';
 import config from '@/utils/config';
+
+// SEP-41 token event types
+const SEP41_EVENT_TYPES = ['transfer', 'mint', 'burn', 'clawback', 'approve', 'set_admin'];
 import '../../scan.css';
 
 export default function TransactionPage({ params }) {
@@ -11,6 +15,7 @@ export default function TransactionPage({ params }) {
   const [txData, setTxData] = useState(null);
   const [decodedXdrs, setDecodedXdrs] = useState({});
   const [events, setEvents] = useState([]);
+  const [tokenInfo, setTokenInfo] = useState({}); // { contractId: { symbol, name, decimals } }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
@@ -48,11 +53,29 @@ export default function TransactionPage({ params }) {
     }
   };
 
+  // Helper to check if an event is a SEP-41 token event
+  const isSep41Event = (event) => {
+    if (!event.topics || event.topics.length === 0) return false;
+    const firstTopic = event.topics[0];
+    if (firstTopic?.symbol && SEP41_EVENT_TYPES.includes(firstTopic.symbol)) {
+      return true;
+    }
+    return false;
+  };
+
+  // Get the event type from topics
+  const getEventType = (event) => {
+    if (event.topics?.[0]?.symbol) {
+      return event.topics[0].symbol;
+    }
+    return 'unknown';
+  };
+
   const decodeAllXdrs = async () => {
     if (!txData) return;
 
     const decoded = {};
-    const extractedEvents = [];
+    const allEvents = [];
 
     // Decode envelope
     if (txData.envelopeXdr) {
@@ -82,7 +105,7 @@ export default function TransactionPage({ params }) {
           for (const op of decoded.resultMeta.v4.operations) {
             if (op.events) {
               for (const event of op.events) {
-                extractedEvents.push({
+                allEvents.push({
                   type: event.type_,
                   contractId: event.contract_id,
                   topics: event.body?.v0?.topics || [],
@@ -95,7 +118,7 @@ export default function TransactionPage({ params }) {
         // Extract events from v3 TransactionMeta (soroban_meta)
         else if (decoded.resultMeta?.v3?.soroban_meta?.events) {
           for (const event of decoded.resultMeta.v3.soroban_meta.events) {
-            extractedEvents.push({
+            allEvents.push({
               type: event.type_,
               contractId: event.contract_id,
               topics: event.body?.v0?.topics || [],
@@ -108,8 +131,33 @@ export default function TransactionPage({ params }) {
       }
     }
 
+    // Filter to only SEP-41 token events
+    const tokenEvents = allEvents.filter(isSep41Event).map(event => ({
+      ...event,
+      eventType: getEventType(event),
+    }));
+
     setDecodedXdrs(decoded);
-    setEvents(extractedEvents);
+    setEvents(tokenEvents);
+
+    // Fetch token metadata for unique contract IDs
+    const uniqueContractIds = [...new Set(tokenEvents.map(e => e.contractId).filter(Boolean))];
+    const metadataPromises = uniqueContractIds.map(async (contractId) => {
+      try {
+        const metadata = await getTokenMetadata(contractId);
+        return { contractId, metadata };
+      } catch (e) {
+        console.error(`Failed to get metadata for ${contractId}:`, e);
+        return { contractId, metadata: { symbol: '???', name: 'Unknown', decimals: 7 } };
+      }
+    });
+
+    const metadataResults = await Promise.all(metadataPromises);
+    const infoMap = {};
+    for (const { contractId, metadata } of metadataResults) {
+      infoMap[contractId] = metadata;
+    }
+    setTokenInfo(infoMap);
   };
 
   const copyToClipboard = () => {
@@ -229,7 +277,7 @@ export default function TransactionPage({ params }) {
         <p>transaction not found</p>
       ) : (
         <>
-          <h2>general info</h2>
+          <h2>transaction info</h2>
 
           <p><strong>status:</strong> <span className={getStatusColor(txData.status)}>{txData.status}</span></p>
           <p><strong>ledger:</strong> {txData.ledger || 'N/A'}</p>
@@ -243,45 +291,106 @@ export default function TransactionPage({ params }) {
 
           <hr />
 
-          <h2>events ({events.length})</h2>
+          <h2>token events ({events.length})</h2>
 
           {events.length > 0 ? (
             <div className="events-list">
-              {events.map((event, index) => (
-                <div key={index} className="event-item">
-                  <p>
-                    <strong>#{index + 1}</strong>
-                    {event.contractId && (
-                      <> | <Link href={`/scan/account/${event.contractId}`}>{event.contractId.substring(0, 8)}...</Link></>
-                    )}
-                  </p>
-                  {event.topics && event.topics.length > 0 && (
-                    <p><small>{event.topics.map(t => {
-                      if (t.symbol) return t.symbol;
-                      if (t.address) return t.address.substring(0, 8) + '...';
-                      if (t.string) return t.string;
-                      return '...';
-                    }).join(', ')}</small></p>
-                  )}
-                  {event.data && (
-                    <p><small>value: {(() => {
-                      if (event.data.i128) return event.data.i128;
-                      if (event.data.u128) return event.data.u128;
-                      if (event.data.i64) return event.data.i64;
-                      if (event.data.u64) return event.data.u64;
-                      if (event.data.i32) return event.data.i32;
-                      if (event.data.u32) return event.data.u32;
-                      if (event.data.string) return event.data.string;
-                      if (event.data.symbol) return event.data.symbol;
-                      if (event.data.address) return event.data.address.substring(0, 12) + '...';
-                      return JSON.stringify(event.data);
-                    })()}</small></p>
-                  )}
-                </div>
-              ))}
+              {events.map((event, index) => {
+                const token = tokenInfo[event.contractId];
+                const symbol = token?.symbol === 'native' ? 'XLM' : (token?.symbol || '???');
+                const decimals = token?.decimals ?? 7;
+
+                // Extract raw amount from event data
+                const getRawAmount = () => {
+                  if (!event.data) return null;
+                  if (event.data.i128) return event.data.i128;
+                  if (event.data.u128) return event.data.u128;
+                  if (event.data.i64) return event.data.i64;
+                  if (event.data.u64) return event.data.u64;
+                  if (event.data.i32) return String(event.data.i32);
+                  if (event.data.u32) return String(event.data.u32);
+                  return null;
+                };
+
+                const rawAmount = getRawAmount();
+                const formattedAmount = rawAmount
+                  ? formatTokenBalance(rawToDisplay(rawAmount, decimals), decimals)
+                  : null;
+
+                // Extract addresses from topics (topics[1] = from, topics[2] = to for transfers)
+                const getAddress = (topicIndex) => event.topics?.[topicIndex]?.address;
+                const minify = (addr) => addr ? addr.substring(0, 5) : null;
+
+                const fromAddr = getAddress(1);
+                const toAddr = getAddress(2);
+
+                // Render human-readable event description
+                const renderEventDescription = () => {
+                  const symbolLink = <Link href={`/scan/token/${event.contractId}`}>{symbol}</Link>;
+
+                  switch (event.eventType) {
+                    case 'transfer':
+                      return (
+                        <p className="event-description">
+                          {symbolLink}: transfer {formattedAmount || '?'} from{' '}
+                          {fromAddr ? <Link href={`/scan/account/${fromAddr}`}>{minify(fromAddr)}</Link> : '?'}{' '}
+                          to {toAddr ? <Link href={`/scan/account/${toAddr}`}>{minify(toAddr)}</Link> : '?'}
+                        </p>
+                      );
+                    case 'mint':
+                      return (
+                        <p className="event-description">
+                          {symbolLink}: mint {formattedAmount || '?'} to{' '}
+                          {toAddr ? <Link href={`/scan/account/${toAddr}`}>{minify(toAddr)}</Link> : '?'}
+                        </p>
+                      );
+                    case 'burn':
+                      return (
+                        <p className="event-description">
+                          {symbolLink}: burn {formattedAmount || '?'} from{' '}
+                          {fromAddr ? <Link href={`/scan/account/${fromAddr}`}>{minify(fromAddr)}</Link> : '?'}
+                        </p>
+                      );
+                    case 'clawback':
+                      return (
+                        <p className="event-description">
+                          {symbolLink}: clawback {formattedAmount || '?'} from{' '}
+                          {fromAddr ? <Link href={`/scan/account/${fromAddr}`}>{minify(fromAddr)}</Link> : '?'}
+                        </p>
+                      );
+                    case 'approve':
+                      return (
+                        <p className="event-description">
+                          {symbolLink}: approve {formattedAmount || '?'} from{' '}
+                          {fromAddr ? <Link href={`/scan/account/${fromAddr}`}>{minify(fromAddr)}</Link> : '?'}{' '}
+                          to {toAddr ? <Link href={`/scan/account/${toAddr}`}>{minify(toAddr)}</Link> : '?'}
+                        </p>
+                      );
+                    case 'set_admin':
+                      return (
+                        <p className="event-description">
+                          {symbolLink}: set_admin{' '}
+                          {fromAddr ? <Link href={`/scan/account/${fromAddr}`}>{minify(fromAddr)}</Link> : '?'}
+                        </p>
+                      );
+                    default:
+                      return (
+                        <p className="event-description">
+                          {symbolLink}: {event.eventType} {formattedAmount || ''}
+                        </p>
+                      );
+                  }
+                };
+
+                return (
+                  <div key={index} className="event-item">
+                    {renderEventDescription()}
+                  </div>
+                );
+              })}
             </div>
           ) : (
-            <p>{xdrReady ? 'no events' : 'loading...'}</p>
+            <p>{xdrReady ? 'no token events' : 'loading...'}</p>
           )}
 
           <hr />
