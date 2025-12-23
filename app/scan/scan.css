@@ -174,9 +174,93 @@
   margin: 0;
 }
 
+/* Status colors */
+.scan-page .success {
+  color: #28a745;
+}
+
+.scan-page .warning {
+  color: #ffc107;
+}
+
+/* Events list */
+.scan-page .events-list {
+  margin: 1em 0;
+}
+
+.scan-page .event-item {
+  margin: 0.5em 0;
+  padding: 0.5em 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.scan-page .event-item:last-child {
+  border-bottom: none;
+}
+
+.scan-page .event-topics {
+  margin-top: 0.25em;
+}
+
+/* XDR sections */
+.scan-page .xdr-section {
+  margin: 0.5em 0;
+}
+
+.scan-page .xdr-content {
+  margin: 0.5em 0 1em 0;
+  padding: 1em;
+  background-color: var(--surface);
+  border: 1px solid var(--border-color);
+  border-radius: 3px;
+  overflow-x: auto;
+}
+
+/* JSON viewer */
+.scan-page .json-viewer {
+  font-family: var(--mono-font);
+  font-size: 0.85em;
+  line-height: 1.4;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.scan-page .json-indent {
+  margin-left: 1.5em;
+}
+
+.scan-page .json-key {
+  color: #9cdcfe;
+}
+
+.scan-page .json-string {
+  color: #ce9178;
+}
+
+.scan-page .json-number {
+  color: #b5cea8;
+}
+
+.scan-page .json-boolean {
+  color: #569cd6;
+}
+
+.scan-page .json-null {
+  color: #569cd6;
+}
+
+.scan-page .json-ellipsis {
+  color: var(--text-secondary);
+}
+
 /* Mobile optimizations */
 @media (max-width: 640px) {
   .scan-page {
     padding: 20px 10px;
+  }
+
+  .scan-page .json-viewer {
+    font-size: 0.75em;
   }
 }

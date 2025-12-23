@@ -340,7 +340,7 @@ export default function AccountPage({ params }) {
                       <>received {formatAmount(t.amount, t.contractId)} <Link href={`/scan/token/${t.contractId}`}>{getSymbol(t.contractId)}</Link> from <Link href={`/scan/account/${t.counterparty}`}>{shortenAddressSmall(t.counterparty)}</Link></>
                     )}
                     <br />
-                    <small>{formatTimestamp(t.timestamp)} (<a href={`${config.stellar.explorerUrl}/tx/${t.txHash}`} target="_blank" rel="noopener noreferrer">{t.txHash?.substring(0, 4)}</a>)</small>
+                    <small>{formatTimestamp(t.timestamp)} (<Link href={`/scan/tx/${t.txHash}`}>{t.txHash?.substring(0, 4)}</Link>)</small>
                   </p>
                 ))}
               </div>

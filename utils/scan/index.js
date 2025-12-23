@@ -7,6 +7,10 @@ import * as StellarSdk from '@stellar/stellar-sdk';
 import config from '../config';
 import { scValToAddress, scValToAmount } from '../stellar/helpers';
 
+// XDR decoder state (lazy loaded WASM)
+let xdrDecoderModule = null;
+let xdrDecoderReady = false;
+
 /**
  * Create an RPC server for scan operations
  * Uses the shared RPC URL from config
@@ -487,4 +491,74 @@ export function removeTrackedAsset(contractId) {
   }
   const assets = getTrackedAssets().filter(a => a.contractId !== contractId);
   localStorage.setItem(SCAN_STORAGE_KEYS.trackedAssets, JSON.stringify(assets));
+}
+
+/**
+ * Initialize the XDR decoder WASM module
+ * Must be called before using decodeXdr
+ * @returns {Promise<void>}
+ */
+export async function initXdrDecoder() {
+  if (xdrDecoderReady) return;
+
+  try {
+    const module = await import('@stellar/stellar-xdr-json');
+    await module.default();
+    xdrDecoderModule = module;
+    xdrDecoderReady = true;
+  } catch (error) {
+    console.error('Failed to initialize XDR decoder:', error);
+    throw error;
+  }
+}
+
+/**
+ * Decode XDR to JSON using the stellar-xdr-json library
+ * @param {string} typeName - The XDR type name (e.g., 'TransactionEnvelope')
+ * @param {string} xdrBase64 - The base64-encoded XDR
+ * @returns {Promise<object>} The decoded JSON object
+ */
+export async function decodeXdr(typeName, xdrBase64) {
+  if (!xdrDecoderReady) {
+    await initXdrDecoder();
+  }
+
+  try {
+    const jsonString = xdrDecoderModule.decode(typeName, xdrBase64);
+    return JSON.parse(jsonString);
+  } catch (error) {
+    console.error(`Failed to decode XDR type ${typeName}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Get transaction details from RPC
+ * @param {string} txHash - The transaction hash
+ * @returns {Promise<object>} Transaction data including XDRs and events
+ */
+export async function getTransaction(txHash) {
+  const result = await rpcCall('getTransaction', { hash: txHash });
+
+  if (result.status === 'NOT_FOUND') {
+    return {
+      status: 'NOT_FOUND',
+      hash: txHash,
+    };
+  }
+
+  // Events will be extracted from decoded XDR on the client side
+  // We pass the raw XDR and let the page decode it with json-xdr
+
+  return {
+    status: result.status,
+    hash: txHash,
+    ledger: result.ledger,
+    createdAt: result.createdAt,
+    applicationOrder: result.applicationOrder,
+    feeBump: result.feeBump,
+    envelopeXdr: result.envelopeXdr,
+    resultXdr: result.resultXdr,
+    resultMetaXdr: result.resultMetaXdr,
+  };
 }

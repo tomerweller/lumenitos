@@ -163,7 +163,7 @@ export default function TokenPage({ params }) {
                     {': '}
                     {formatAmount(t.amount)} {getSymbol()}
                     <br />
-                    <small>{formatTimestamp(t.timestamp)} (<a href={`${config.stellar.explorerUrl}/tx/${t.txHash}`} target="_blank" rel="noopener noreferrer">{t.txHash?.substring(0, 4)}</a>)</small>
+                    <small>{formatTimestamp(t.timestamp)} (<Link href={`/scan/tx/${t.txHash}`}>{t.txHash?.substring(0, 4)}</Link>)</small>
                   </p>
                 ))}
               </div>
