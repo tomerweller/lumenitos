@@ -282,11 +282,8 @@ export default function TransactionPage({ params }) {
           <p><strong>status:</strong> <span className={getStatusColor(txData.status)}>{txData.status}</span></p>
           <p><strong>ledger:</strong> {txData.ledger || 'N/A'}</p>
           <p><strong>timestamp:</strong> {formatTimestamp(txData.createdAt)}</p>
-          {txData.applicationOrder && (
-            <p><strong>application order:</strong> {txData.applicationOrder}</p>
-          )}
-          {txData.feeBump !== undefined && (
-            <p><strong>fee bump:</strong> {txData.feeBump ? 'yes' : 'no'}</p>
+          {txData.feeBump && (
+            <p><strong>fee bump:</strong> yes</p>
           )}
 
           <hr />
