@@ -102,7 +102,7 @@ describe('WalletDashboard', () => {
 
       expect(screen.getAllByText('receive')).toHaveLength(2);
       expect(screen.getAllByText('send')).toHaveLength(2);
-      expect(screen.getAllByText('explore')).toHaveLength(2);
+      expect(screen.getAllByText('scan')).toHaveLength(2);
     });
 
     it('shows fund link on testnet with zero balance', () => {
