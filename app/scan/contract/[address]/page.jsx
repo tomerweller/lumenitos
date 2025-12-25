@@ -215,8 +215,6 @@ export default function ContractPage({ params }) {
       </p>
 
       <p>
-        <Link href={`/scan/account/${address}`}>account view</Link>
-        {' | '}
         <Link href={`/scan/token/${address}`}>token view</Link>
       </p>
 

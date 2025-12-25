@@ -54,7 +54,12 @@ export default function ScanPage() {
       return;
     }
 
-    router.push(`/scan/account/${trimmedInput}`);
+    // Route C... addresses to contract page, G... addresses to account page
+    if (trimmedInput.startsWith('C')) {
+      router.push(`/scan/contract/${trimmedInput}`);
+    } else {
+      router.push(`/scan/account/${trimmedInput}`);
+    }
   };
 
   return (
