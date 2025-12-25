@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect, use } from 'react';
 import Link from 'next/link';
-import { getTransaction, initXdrDecoder, decodeXdr, getTokenMetadata } from '@/utils/scan';
+import { getTransaction, initXdrDecoder, decodeXdr, getTokenMetadata, getPoolShareMetadata } from '@/utils/scan';
 import { formatOperations } from '@/utils/scan/operations';
 import { rawToDisplay, formatTokenBalance } from '@/utils/stellar/helpers';
+import { getAddressPath } from '@/utils/scan/helpers';
 import config from '@/utils/config';
 
 // SEP-41 token event types
@@ -153,7 +154,11 @@ export default function TransactionPage({ params }) {
         const metadata = await getTokenMetadata(contractId);
         return { contractId, metadata };
       } catch (e) {
-        console.error(`Failed to get metadata for ${contractId}:`, e);
+        // Try pool share fallback
+        const poolMeta = await getPoolShareMetadata(contractId);
+        if (poolMeta) {
+          return { contractId, metadata: poolMeta };
+        }
         return { contractId, metadata: { symbol: '???', name: 'Unknown', decimals: 7 } };
       }
     });
@@ -307,7 +312,7 @@ export default function TransactionPage({ params }) {
                   const addressMap = {};
                   if (details) {
                     for (const [key, value] of Object.entries(details)) {
-                      if (typeof value === 'string' && (value.startsWith('G') || value.startsWith('C')) && value.length >= 56) {
+                      if (typeof value === 'string' && (value.startsWith('G') || value.startsWith('C') || value.startsWith('L')) && value.length >= 56) {
                         // Find the shortened version in description
                         const shortened = value.substring(0, 5);
                         if (description.includes(shortened)) {
@@ -335,8 +340,7 @@ export default function TransactionPage({ params }) {
                         parts.push(remaining.substring(0, idx));
                       }
                       // Add the linked address
-                      const linkPath = fullAddr.startsWith('C') ? `/scan/contract/${fullAddr}` : `/scan/account/${fullAddr}`;
-                      parts.push(<Link key={key++} href={linkPath}>{shortened}</Link>);
+                      parts.push(<Link key={key++} href={getAddressPath(fullAddr)}>{shortened}</Link>);
                       remaining = remaining.substring(idx + shortened.length);
                     }
                   }
@@ -353,7 +357,7 @@ export default function TransactionPage({ params }) {
                     <span className="op-index">{op.index + 1}.</span>{' '}
                     {renderOpDescription()}
                     {op.sourceAccount && (
-                      <span className="op-source"> (source: <Link href={op.sourceAccount.startsWith('C') ? `/scan/contract/${op.sourceAccount}` : `/scan/account/${op.sourceAccount}`}>{op.sourceAccountShort}</Link>)</span>
+                      <span className="op-source"> (source: <Link href={getAddressPath(op.sourceAccount)}>{op.sourceAccountShort}</Link>)</span>
                     )}
                   </p>
                 );
@@ -400,7 +404,7 @@ export default function TransactionPage({ params }) {
                 // - set_admin: [symbol, new_admin_addr]
                 const getAddress = (topicIndex) => event.topics?.[topicIndex]?.address;
                 const minify = (addr) => addr ? addr.substring(0, 5) : null;
-                const addrLink = (addr) => addr?.startsWith('C') ? `/scan/contract/${addr}` : `/scan/account/${addr}`;
+                const addrLink = (addr) => getAddressPath(addr);
 
                 // Determine from/to addresses based on event type
                 let fromAddr = null;
