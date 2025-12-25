@@ -546,7 +546,8 @@ export function formatOperation(op) {
     type,
     description,
     details,
-    sourceAccount: sourceAccount ? shortenAddress(sourceAccount) : null,
+    sourceAccount: sourceAccount || null,
+    sourceAccountShort: sourceAccount ? shortenAddress(sourceAccount) : null,
   };
 }
 

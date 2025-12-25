@@ -287,7 +287,8 @@ describe('formatOperation - All 26 Operation Types', () => {
         },
       };
       const result = formatOperation(op);
-      expect(result.sourceAccount).toBe('GSOUR');
+      expect(result.sourceAccount).toBe('GSOURCE1234567890123456789012345678901234567890123456');
+      expect(result.sourceAccountShort).toBe('GSOUR');
     });
   });
 
@@ -1066,6 +1067,7 @@ describe('Edge Cases', () => {
       },
     };
     const result = formatOperation(op);
-    expect(result.sourceAccount).toBe('GSOUR');
+    expect(result.sourceAccount).toBe('GSOURCE1234567890123456789012345678901234567890123456');
+    expect(result.sourceAccountShort).toBe('GSOUR');
   });
 });

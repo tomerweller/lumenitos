@@ -298,15 +298,66 @@ export default function TransactionPage({ params }) {
 
           {operations.length > 0 ? (
             <div className="operations-list">
-              {operations.map((op) => (
-                <p key={op.index} className="operation-item">
-                  <span className="op-index">{op.index + 1}.</span>{' '}
-                  {op.description}
-                  {op.sourceAccount && (
-                    <span className="op-source"> (source: {op.sourceAccount})</span>
-                  )}
-                </p>
-              ))}
+              {operations.map((op) => {
+                // Render description with linked addresses
+                const renderOpDescription = () => {
+                  const { description, details } = op;
+
+                  // Collect all addresses from details that appear in the description
+                  const addressMap = {};
+                  if (details) {
+                    for (const [key, value] of Object.entries(details)) {
+                      if (typeof value === 'string' && (value.startsWith('G') || value.startsWith('C')) && value.length >= 56) {
+                        // Find the shortened version in description
+                        const shortened = value.substring(0, 5);
+                        if (description.includes(shortened)) {
+                          addressMap[shortened] = value;
+                        }
+                      }
+                    }
+                  }
+
+                  // If no addresses to link, return plain description
+                  if (Object.keys(addressMap).length === 0) {
+                    return description;
+                  }
+
+                  // Split description and replace shortened addresses with links
+                  const parts = [];
+                  let remaining = description;
+                  let key = 0;
+
+                  for (const [shortened, fullAddr] of Object.entries(addressMap)) {
+                    const idx = remaining.indexOf(shortened);
+                    if (idx !== -1) {
+                      // Add text before the address
+                      if (idx > 0) {
+                        parts.push(remaining.substring(0, idx));
+                      }
+                      // Add the linked address
+                      const linkPath = fullAddr.startsWith('C') ? `/scan/contract/${fullAddr}` : `/scan/account/${fullAddr}`;
+                      parts.push(<Link key={key++} href={linkPath}>{shortened}</Link>);
+                      remaining = remaining.substring(idx + shortened.length);
+                    }
+                  }
+                  // Add any remaining text
+                  if (remaining) {
+                    parts.push(remaining);
+                  }
+
+                  return parts;
+                };
+
+                return (
+                  <p key={op.index} className="operation-item">
+                    <span className="op-index">{op.index + 1}.</span>{' '}
+                    {renderOpDescription()}
+                    {op.sourceAccount && (
+                      <span className="op-source"> (source: <Link href={op.sourceAccount.startsWith('C') ? `/scan/contract/${op.sourceAccount}` : `/scan/account/${op.sourceAccount}`}>{op.sourceAccountShort}</Link>)</span>
+                    )}
+                  </p>
+                );
+              })}
             </div>
           ) : (
             <p>{xdrReady ? 'no operations' : 'loading...'}</p>
@@ -343,6 +394,7 @@ export default function TransactionPage({ params }) {
                 // Extract addresses from topics (topics[1] = from, topics[2] = to for transfers)
                 const getAddress = (topicIndex) => event.topics?.[topicIndex]?.address;
                 const minify = (addr) => addr ? addr.substring(0, 5) : null;
+                const addrLink = (addr) => addr?.startsWith('C') ? `/scan/contract/${addr}` : `/scan/account/${addr}`;
 
                 const fromAddr = getAddress(1);
                 const toAddr = getAddress(2);
@@ -356,44 +408,44 @@ export default function TransactionPage({ params }) {
                       return (
                         <p className="event-description">
                           {symbolLink}: transfer {formattedAmount || '?'} from{' '}
-                          {fromAddr ? <Link href={`/scan/account/${fromAddr}`}>{minify(fromAddr)}</Link> : '?'}{' '}
-                          to {toAddr ? <Link href={`/scan/account/${toAddr}`}>{minify(toAddr)}</Link> : '?'}
+                          {fromAddr ? <Link href={addrLink(fromAddr)}>{minify(fromAddr)}</Link> : '?'}{' '}
+                          to {toAddr ? <Link href={addrLink(toAddr)}>{minify(toAddr)}</Link> : '?'}
                         </p>
                       );
                     case 'mint':
                       return (
                         <p className="event-description">
                           {symbolLink}: mint {formattedAmount || '?'} to{' '}
-                          {toAddr ? <Link href={`/scan/account/${toAddr}`}>{minify(toAddr)}</Link> : '?'}
+                          {toAddr ? <Link href={addrLink(toAddr)}>{minify(toAddr)}</Link> : '?'}
                         </p>
                       );
                     case 'burn':
                       return (
                         <p className="event-description">
                           {symbolLink}: burn {formattedAmount || '?'} from{' '}
-                          {fromAddr ? <Link href={`/scan/account/${fromAddr}`}>{minify(fromAddr)}</Link> : '?'}
+                          {fromAddr ? <Link href={addrLink(fromAddr)}>{minify(fromAddr)}</Link> : '?'}
                         </p>
                       );
                     case 'clawback':
                       return (
                         <p className="event-description">
                           {symbolLink}: clawback {formattedAmount || '?'} from{' '}
-                          {fromAddr ? <Link href={`/scan/account/${fromAddr}`}>{minify(fromAddr)}</Link> : '?'}
+                          {fromAddr ? <Link href={addrLink(fromAddr)}>{minify(fromAddr)}</Link> : '?'}
                         </p>
                       );
                     case 'approve':
                       return (
                         <p className="event-description">
                           {symbolLink}: approve {formattedAmount || '?'} from{' '}
-                          {fromAddr ? <Link href={`/scan/account/${fromAddr}`}>{minify(fromAddr)}</Link> : '?'}{' '}
-                          to {toAddr ? <Link href={`/scan/account/${toAddr}`}>{minify(toAddr)}</Link> : '?'}
+                          {fromAddr ? <Link href={addrLink(fromAddr)}>{minify(fromAddr)}</Link> : '?'}{' '}
+                          to {toAddr ? <Link href={addrLink(toAddr)}>{minify(toAddr)}</Link> : '?'}
                         </p>
                       );
                     case 'set_admin':
                       return (
                         <p className="event-description">
                           {symbolLink}: set_admin{' '}
-                          {fromAddr ? <Link href={`/scan/account/${fromAddr}`}>{minify(fromAddr)}</Link> : '?'}
+                          {fromAddr ? <Link href={addrLink(fromAddr)}>{minify(fromAddr)}</Link> : '?'}
                         </p>
                       );
                     default:
