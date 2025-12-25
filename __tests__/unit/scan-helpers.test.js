@@ -146,9 +146,10 @@ describe('Address Path Generation', () => {
         .toBe('https://stellar.expert/explorer/public/contract/CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75');
     });
 
-    it('returns liquidity-pool URL for L addresses', () => {
-      expect(getStellarExpertUrl('LAU2IM2GFJNKOCQT2TBTS3N5ZT6H2NW3A3XEPTEIXXDRLILSPM7H2DUG'))
-        .toBe('https://stellar.expert/explorer/public/liquidity-pool/LAU2IM2GFJNKOCQT2TBTS3N5ZT6H2NW3A3XEPTEIXXDRLILSPM7H2DUG');
+    it('returns liquidity-pool URL with hex pool ID for L addresses', () => {
+      // L addresses are decoded to hex pool IDs for stellar.expert
+      const result = getStellarExpertUrl('LAU2IM2GFJNKOCQT2TBTS3N5ZT6H2NW3A3XEPTEIXXDRLILSPM7H2DUG');
+      expect(result).toMatch(/^https:\/\/stellar\.expert\/explorer\/public\/liquidity-pool\/[a-f0-9]{64}$/);
     });
 
     it('returns base URL for null/undefined', () => {

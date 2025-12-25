@@ -6,6 +6,7 @@
  */
 
 import config from '@/utils/config';
+import { StrKey } from '@stellar/stellar-sdk';
 
 /**
  * Shorten an address for display (6....6 format)
@@ -76,8 +77,13 @@ export const getStellarExpertUrl = (addr) => {
   if (!addr) return config.stellar.explorerUrl;
 
   if (addr.startsWith('L')) {
-    // Liquidity pool
-    return `${config.stellar.explorerUrl}/liquidity-pool/${addr}`;
+    // Liquidity pool - stellar.expert uses hex pool ID, not L... address
+    try {
+      const poolId = StrKey.decodeLiquidityPool(addr);
+      return `${config.stellar.explorerUrl}/liquidity-pool/${poolId.toString('hex')}`;
+    } catch {
+      return `${config.stellar.explorerUrl}/liquidity-pool/${addr}`;
+    }
   }
   if (addr.startsWith('C')) {
     return `${config.stellar.explorerUrl}/contract/${addr}`;
