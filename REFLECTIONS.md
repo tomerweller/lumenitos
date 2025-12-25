@@ -617,6 +617,90 @@ With a factory pattern:
 - **WASM upgrades**: Deploy a new factory with an updated WASM hash
 - **Analytics**: The factory could emit events for all deployed accounts
 
+## Challenge 13: Formatting Stellar Operations for Human Readability
+
+### The Problem
+
+Displaying transaction details in a block explorer requires converting raw XDR operation data into human-readable descriptions. The Stellar network supports 26 different operation types, each with its own structure and parameters.
+
+### Investigation
+
+The decoded `TransactionEnvelope` XDR contains operations in various formats:
+- Different naming conventions: `snake_case`, `camelCase`, `PascalCase`
+- Nested structure variations: `envelope.tx.tx.operations` vs `envelope.v1.tx.operations`
+- Complex nested objects for certain operations (e.g., `invoke_host_function`)
+
+### The Solution
+
+We created a comprehensive operation formatter (`utils/scan/operations.js`) that:
+
+1. **Normalizes operation types** - Converts all naming conventions to `snake_case`:
+   ```javascript
+   function normalizeOperationType(type) {
+     return type
+       .replace(/([a-z])([A-Z])/g, '$1_$2')
+       .replace(/([A-Z])([A-Z][a-z])/g, '$1_$2')
+       .toLowerCase();
+   }
+   ```
+
+2. **Handles multiple envelope formats** - The decoder checks for operations in all possible locations:
+   ```javascript
+   // v1 envelope
+   if (envelope.v1?.tx?.operations) { ... }
+   // Nested tx.tx format (from stellar-xdr-json)
+   else if (envelope.tx?.tx?.operations) { ... }
+   // Fee bump envelope
+   else if (envelope.fee_bump?.tx?.inner_tx?.v1?.tx?.operations) { ... }
+   ```
+
+3. **Generates concise descriptions** for all 26 operations:
+
+   | Operation | Example Output |
+   |-----------|---------------|
+   | `create_account` | `create account GDEST with 100 XLM` |
+   | `payment` | `pay 50 USDC to GDEST` |
+   | `manage_sell_offer` | `sell 100 XLM for USDC at 0.5` |
+   | `change_trust` | `trust USDC` or `remove trust USDC` |
+   | `invoke_host_function` | `invoke transfer() on CCONT` |
+   | `extend_footprint_ttl` | `extend TTL by 100000 ledgers` |
+
+4. **Handles edge cases**:
+   - Missing data returns `?` placeholders
+   - Unknown operation types display normalized name
+   - Offer cancellations detected by amount=0
+   - Liquidity pool assets distinguished from regular assets
+
+### Key Insights
+
+1. **Amount formatting requires decimals** - Stellar stores amounts in stroops (1 XLM = 10^7 stroops). Different assets have different decimal places (XLM=7, USDC=6).
+
+2. **Asset formats vary widely** - Native XLM can be represented as `"native"`, `{ native: null }`, or `{ Native: {} }`. Credit assets can use `credit_alphanum4` or `CreditAlphanum4`.
+
+3. **Some operations have body-level values** - Operations like `account_merge` and `begin_sponsoring_future_reserves` store their main value directly in the body rather than nested in an object.
+
+4. **Contract invocations need special handling** - `invoke_host_function` can be contract invocation, WASM upload, or contract deployment, each with different structures.
+
+### Implementation Notes
+
+The formatter is pure JavaScript with no external dependencies:
+- **105 unit tests** covering all operation types and edge cases
+- Handles both standard and non-standard XDR decoder output formats
+- Gracefully degrades for malformed or incomplete data
+
+```javascript
+// Usage in transaction page
+import { formatOperations } from '@/utils/scan/operations';
+
+const ops = formatOperations(decodedEnvelope);
+// Returns: [{ index: 0, type: 'payment', description: 'pay 100 XLM to GDEST', details: {...} }]
+```
+
+### Reference
+
+All 26 Stellar operations are documented at:
+https://developers.stellar.org/docs/learn/fundamentals/transactions/list-of-operations
+
 ## Conclusion
 
 Implementing a custom contract account in Stellar requires deep understanding of:

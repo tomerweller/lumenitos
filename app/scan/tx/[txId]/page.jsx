@@ -3,6 +3,7 @@
 import React, { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import { getTransaction, initXdrDecoder, decodeXdr, getTokenMetadata } from '@/utils/scan';
+import { formatOperations } from '@/utils/scan/operations';
 import { rawToDisplay, formatTokenBalance } from '@/utils/stellar/helpers';
 import config from '@/utils/config';
 
@@ -14,6 +15,7 @@ export default function TransactionPage({ params }) {
   const { txId } = use(params);
   const [txData, setTxData] = useState(null);
   const [decodedXdrs, setDecodedXdrs] = useState({});
+  const [operations, setOperations] = useState([]);
   const [events, setEvents] = useState([]);
   const [tokenInfo, setTokenInfo] = useState({}); // { contractId: { symbol, name, decimals } }
   const [loading, setLoading] = useState(true);
@@ -77,12 +79,16 @@ export default function TransactionPage({ params }) {
     const decoded = {};
     const allEvents = [];
 
-    // Decode envelope
+    // Decode envelope and extract operations
     if (txData.envelopeXdr) {
       try {
         decoded.envelope = await decodeXdr('TransactionEnvelope', txData.envelopeXdr);
+        // Extract and format operations
+        const formattedOps = formatOperations(decoded.envelope);
+        setOperations(formattedOps);
       } catch (e) {
         decoded.envelope = { error: e.message };
+        setOperations([]);
       }
     }
 
@@ -284,6 +290,26 @@ export default function TransactionPage({ params }) {
           <p><strong>timestamp:</strong> {formatTimestamp(txData.createdAt)}</p>
           {txData.feeBump && (
             <p><strong>fee bump:</strong> yes</p>
+          )}
+
+          <hr />
+
+          <h2>operations ({operations.length})</h2>
+
+          {operations.length > 0 ? (
+            <div className="operations-list">
+              {operations.map((op) => (
+                <p key={op.index} className="operation-item">
+                  <span className="op-index">{op.index + 1}.</span>{' '}
+                  {op.description}
+                  {op.sourceAccount && (
+                    <span className="op-source"> (source: {op.sourceAccount})</span>
+                  )}
+                </p>
+              ))}
+            </div>
+          ) : (
+            <p>{xdrReady ? 'no operations' : 'loading...'}</p>
           )}
 
           <hr />
