@@ -18,6 +18,8 @@ export default function TransactionPage({ params }) {
   const [decodedXdrs, setDecodedXdrs] = useState({});
   const [operations, setOperations] = useState([]);
   const [events, setEvents] = useState([]);
+  const [sourceAccount, setSourceAccount] = useState(null);
+  const [sponsorAccount, setSponsorAccount] = useState(null); // For fee bump txs
   const [tokenInfo, setTokenInfo] = useState({}); // { contractId: { symbol, name, decimals } }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -87,6 +89,22 @@ export default function TransactionPage({ params }) {
         // Extract and format operations
         const formattedOps = formatOperations(decoded.envelope);
         setOperations(formattedOps);
+
+        // Extract source account(s) from envelope
+        // Fee bump: envelope.tx_fee_bump.tx.fee_source (sponsor) + inner_tx source
+        // Regular: envelope.tx.tx.source_account
+        if (decoded.envelope.tx_fee_bump) {
+          const feeBump = decoded.envelope.tx_fee_bump;
+          // Sponsor is the fee bump source
+          setSponsorAccount(feeBump.tx?.fee_source || null);
+          // Inner tx source account - structure is inner_tx.tx.tx.source_account
+          const innerTx = feeBump.tx?.inner_tx?.tx?.tx;
+          setSourceAccount(innerTx?.source_account || null);
+        } else if (decoded.envelope.tx) {
+          // Regular transaction (v1): envelope.tx.tx.source_account
+          setSourceAccount(decoded.envelope.tx.tx?.source_account || null);
+          setSponsorAccount(null);
+        }
       } catch (e) {
         decoded.envelope = { error: e.message };
         setOperations([]);
@@ -293,8 +311,11 @@ export default function TransactionPage({ params }) {
           <p><strong>status:</strong> <span className={getStatusColor(txData.status)}>{txData.status}</span></p>
           <p><strong>ledger:</strong> {txData.ledger || 'N/A'}</p>
           <p><strong>timestamp:</strong> {formatTimestamp(txData.createdAt)}</p>
-          {txData.feeBump && (
-            <p><strong>fee bump:</strong> yes</p>
+          {sourceAccount && (
+            <p><strong>source:</strong> <Link href={getAddressPath(sourceAccount)}>{sourceAccount.substring(0, 6)}...{sourceAccount.substring(sourceAccount.length - 4)}</Link></p>
+          )}
+          {sponsorAccount && (
+            <p><strong>sponsor:</strong> <Link href={getAddressPath(sponsorAccount)}>{sponsorAccount.substring(0, 6)}...{sponsorAccount.substring(sponsorAccount.length - 4)}</Link></p>
           )}
 
           <hr />
