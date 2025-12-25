@@ -40,7 +40,7 @@ export default function ScanPage() {
         // Compute SAC contract address
         const asset = new StellarSdk.Asset(assetCode, issuer);
         const contractId = asset.contractId(config.networkPassphrase);
-        router.push(`/scan/${contractId}/token`);
+        router.push(`/scan/token/${contractId}`);
         return;
       } catch (err) {
         setError(`Invalid asset: ${err.message}`);
@@ -54,7 +54,7 @@ export default function ScanPage() {
       return;
     }
 
-    router.push(`/scan/${trimmedInput}/account`);
+    router.push(`/scan/account/${trimmedInput}`);
   };
 
   return (
