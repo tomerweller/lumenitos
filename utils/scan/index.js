@@ -743,6 +743,44 @@ function getAssetContractId(assetInfo) {
 }
 
 /**
+ * Try to get pool share token metadata for a contract ID
+ * Pool shares don't implement SEP-41 metadata, so we detect them by
+ * checking if the contract ID corresponds to a liquidity pool
+ * @param {string} contractId - The C... contract address
+ * @returns {Promise<{symbol: string, decimals: number}|null>} Pool share metadata or null
+ */
+export async function getPoolShareMetadata(contractId) {
+  if (!contractId || !contractId.startsWith('C')) {
+    return null;
+  }
+
+  try {
+    // Decode C... to raw 32-byte ID
+    const rawId = StellarSdk.StrKey.decodeContract(contractId);
+    // Re-encode as L... (liquidity pool address)
+    const poolAddress = StellarSdk.StrKey.encodeLiquidityPool(rawId);
+
+    // Try to fetch LP data - if it succeeds, this is a pool share token
+    const poolData = await getLiquidityPoolData(poolAddress);
+
+    // Format symbol as TICKER1:TICKER2
+    const symbol = `${poolData.assetA.code}:${poolData.assetB.code}`;
+
+    return {
+      symbol,
+      decimals: 7, // Pool shares have 7 decimal places
+      isPoolShare: true,
+      poolAddress,
+      assetA: poolData.assetA.code,
+      assetB: poolData.assetB.code,
+    };
+  } catch {
+    // Not a liquidity pool, return null
+    return null;
+  }
+}
+
+/**
  * Get liquidity pool data from RPC using getLedgerEntries
  * @param {string} poolAddress - The L... address of the liquidity pool
  * @returns {Promise<object>} Pool data including assets, reserves, fee, and shares

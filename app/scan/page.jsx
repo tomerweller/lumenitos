@@ -8,6 +8,7 @@ import {
   isValidAddress,
   getRecentTokenActivity,
   getTokenMetadata,
+  getPoolShareMetadata,
   extractContractIds,
 } from '@/utils/scan';
 import { rawToDisplay, formatTokenBalance } from '@/utils/stellar/helpers';
@@ -50,7 +51,17 @@ export default function ScanPage() {
               decimals: metadata.decimals ?? 7,
             };
           } catch {
-            infoMap[contractId] = { symbol: '???', decimals: 7 };
+            // Try to detect pool share tokens
+            const poolMeta = await getPoolShareMetadata(contractId);
+            if (poolMeta) {
+              infoMap[contractId] = {
+                symbol: poolMeta.symbol,
+                decimals: poolMeta.decimals,
+                isPoolShare: true,
+              };
+            } else {
+              infoMap[contractId] = { symbol: '???', decimals: 7 };
+            }
           }
         })
       );
