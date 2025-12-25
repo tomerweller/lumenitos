@@ -86,13 +86,24 @@ export default function ScanPage() {
     };
   };
 
+  // Check if input looks like a transaction hash (64 hex characters)
+  const isValidTxHash = (input) => {
+    return /^[a-fA-F0-9]{64}$/.test(input);
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     setError('');
 
     const trimmedInput = address.trim();
     if (!trimmedInput) {
-      setError('Please enter an address');
+      setError('Please enter an address or transaction hash');
+      return;
+    }
+
+    // Check if input is a transaction hash
+    if (isValidTxHash(trimmedInput)) {
+      router.push(`/scan/tx/${trimmedInput.toLowerCase()}`);
       return;
     }
 
@@ -124,7 +135,7 @@ export default function ScanPage() {
 
     // Regular address handling
     if (!isValidAddress(trimmedInput)) {
-      setError('Invalid address. Must be a G..., C..., or L... address');
+      setError('Invalid input. Enter a G/C/L address, tx hash, or ASSET:ISSUER');
       return;
     }
 
@@ -156,7 +167,7 @@ export default function ScanPage() {
             id="address"
             value={address}
             onChange={(e) => setAddress(e.target.value)}
-            placeholder="G... / C... / L... / ASSET:ISSUER"
+            placeholder="G... / C... / L... / tx hash / ASSET:ISSUER"
             autoComplete="off"
             spellCheck="false"
           />
