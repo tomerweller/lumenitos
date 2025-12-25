@@ -306,6 +306,40 @@ export function extractContractIds(transfers) {
 }
 
 /**
+ * Get recent token activity across all contracts (network-wide)
+ * Fetches SEP-41 transfer events without filtering by contract or address
+ * @param {number} limit - Maximum transfers to return (default 50)
+ * @returns {Promise<Array>} Array of parsed transfers
+ */
+export async function getRecentTokenActivity(limit = 50) {
+  try {
+    const transferSymbol = StellarSdk.nativeToScVal('transfer', { type: 'symbol' });
+    const startLedger = await getLatestLedger();
+
+    // Fetch all transfer events across any contract
+    const result = await rpcCall('getEvents', {
+      startLedger: startLedger,
+      filters: [
+        {
+          type: 'contract',
+          topics: [[transferSymbol.toXDR('base64'), '*', '*', '**']],
+        }
+      ],
+      pagination: {
+        limit: limit,
+        order: 'desc'
+      }
+    });
+
+    const events = result.events || [];
+    return events.map(event => parseTransferEventGeneric(event));
+  } catch (error) {
+    console.error('Error fetching recent token activity:', error);
+    throw error;
+  }
+}
+
+/**
  * Get recent transfers for a specific token contract
  * Fetches SEP-41 transfer events for a specific contract
  * Supports both 4-topic events (transfer, from, to, amount) and 3-topic events (transfer, from, to)

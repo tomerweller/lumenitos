@@ -1,9 +1,18 @@
 'use client'
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import * as StellarSdk from '@stellar/stellar-sdk';
-import { isValidAddress } from '@/utils/scan';
+import {
+  isValidAddress,
+  getRecentTokenActivity,
+  getTokenMetadata,
+  extractContractIds,
+} from '@/utils/scan';
+import { rawToDisplay, formatTokenBalance } from '@/utils/stellar/helpers';
+import { AddressLink } from './components';
+import { formatTimestamp } from '@/utils/scan/helpers';
 import config from '@/utils/config';
 import './scan.css';
 
@@ -11,6 +20,60 @@ export default function ScanPage() {
   const router = useRouter();
   const [address, setAddress] = useState('');
   const [error, setError] = useState('');
+  const [activity, setActivity] = useState([]);
+  const [tokenInfo, setTokenInfo] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [activityError, setActivityError] = useState(null);
+
+  useEffect(() => {
+    loadRecentActivity();
+  }, []);
+
+  const loadRecentActivity = async () => {
+    setLoading(true);
+    setActivityError(null);
+
+    try {
+      const transfers = await getRecentTokenActivity(20);
+      setActivity(transfers);
+
+      // Extract unique contract IDs and fetch metadata
+      const contractIds = extractContractIds(transfers);
+      const infoMap = {};
+
+      await Promise.all(
+        contractIds.map(async (contractId) => {
+          try {
+            const metadata = await getTokenMetadata(contractId);
+            infoMap[contractId] = {
+              symbol: metadata.symbol === 'native' ? 'XLM' : metadata.symbol,
+              decimals: metadata.decimals ?? 7,
+            };
+          } catch {
+            infoMap[contractId] = { symbol: '???', decimals: 7 };
+          }
+        })
+      );
+
+      setTokenInfo(infoMap);
+    } catch (err) {
+      console.error('Error loading recent activity:', err);
+      setActivityError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatTransfer = (t) => {
+    const info = tokenInfo[t.contractId];
+    const decimals = info?.decimals ?? 7;
+    const displayAmount = rawToDisplay(t.amount, decimals);
+    return {
+      ...t,
+      formattedAmount: formatTokenBalance(displayAmount, decimals),
+      symbol: info?.symbol || '???',
+    };
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -50,13 +113,15 @@ export default function ScanPage() {
 
     // Regular address handling
     if (!isValidAddress(trimmedInput)) {
-      setError('Invalid address. Must be a G... or C... address');
+      setError('Invalid address. Must be a G..., C..., or L... address');
       return;
     }
 
-    // Route C... addresses to contract page, G... addresses to account page
+    // Route based on address type
     if (trimmedInput.startsWith('C')) {
       router.push(`/scan/contract/${trimmedInput}`);
+    } else if (trimmedInput.startsWith('L')) {
+      router.push(`/scan/lp/${trimmedInput}`);
     } else {
       router.push(`/scan/account/${trimmedInput}`);
     }
@@ -80,7 +145,7 @@ export default function ScanPage() {
             id="address"
             value={address}
             onChange={(e) => setAddress(e.target.value)}
-            placeholder="G... / C... / ASSET:ISSUER"
+            placeholder="G... / C... / L... / ASSET:ISSUER"
             autoComplete="off"
             spellCheck="false"
           />
@@ -92,6 +157,42 @@ export default function ScanPage() {
           <a href="#" onClick={handleSubmit}>explore</a>
         </p>
       </form>
+
+      <hr />
+
+      <h2>recent activity</h2>
+
+      {loading ? (
+        <p>loading...</p>
+      ) : activityError ? (
+        <p className="error">error: {activityError}</p>
+      ) : activity.length === 0 ? (
+        <p>no recent activity</p>
+      ) : (
+        <>
+          <div className="transfer-list">
+            {activity.map((t, index) => {
+              const ft = formatTransfer(t);
+              return (
+                <p key={`${t.txHash}-${index}`} className="transfer-item">
+                  <AddressLink address={t.from} />
+                  {' -> '}
+                  <AddressLink address={t.to} />
+                  {': '}
+                  {ft.formattedAmount}{' '}
+                  <Link href={`/scan/token/${t.contractId}`}>{ft.symbol}</Link>
+                  <br />
+                  <small>{formatTimestamp(t.timestamp)} (<Link href={`/scan/tx/${t.txHash}`}>{t.txHash?.substring(0, 4)}</Link>)</small>
+                </p>
+              );
+            })}
+          </div>
+
+          <p>
+            <a href="#" onClick={(e) => { e.preventDefault(); loadRecentActivity(); }}>refresh</a>
+          </p>
+        </>
+      )}
     </div>
   );
 }
