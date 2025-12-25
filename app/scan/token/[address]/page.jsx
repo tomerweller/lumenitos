@@ -129,7 +129,7 @@ export default function TokenPage({ params }) {
       </p>
 
       <p>
-        <Link href={`/scan/account/${address}`}>switch to account view</Link>
+        <Link href={`/scan/contract/${address}`}>switch to contract view</Link>
       </p>
 
       <hr />
