@@ -52,7 +52,7 @@ export const formatUnixTimestamp = (timestamp) => {
 
 /**
  * Get the internal route path for an address based on its type
- * G... -> /scan/account/, C... -> /scan/contract/
+ * G... -> /scan/account/, C... -> /scan/contract/, L... -> /scan/lp/
  * @param {string} addr - The address
  * @returns {string} The route path
  */
@@ -60,6 +60,9 @@ export const getAddressPath = (addr) => {
   if (!addr) return '/scan';
   if (addr.startsWith('C')) {
     return `/scan/contract/${addr}`;
+  }
+  if (addr.startsWith('L')) {
+    return `/scan/lp/${addr}`;
   }
   return `/scan/account/${addr}`;
 };

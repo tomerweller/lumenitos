@@ -124,10 +124,9 @@ describe('Address Path Generation', () => {
         .toBe('/scan/account/GAIH3ULLFQ4DGSECF2AR555KZ4KNDGEKN4AFI4SU2M7B43MGK3QJZNSR');
     });
 
-    it('returns account path for L addresses', () => {
-      // Liquidity pools are treated as accounts in internal routing
+    it('returns lp path for L addresses', () => {
       expect(getAddressPath('LAU2IM2GFJNKOCQT2TBTS3N5ZT6H2NW3A3XEPTEIXXDRLILSPM7H2DUG'))
-        .toBe('/scan/account/LAU2IM2GFJNKOCQT2TBTS3N5ZT6H2NW3A3XEPTEIXXDRLILSPM7H2DUG');
+        .toBe('/scan/lp/LAU2IM2GFJNKOCQT2TBTS3N5ZT6H2NW3A3XEPTEIXXDRLILSPM7H2DUG');
     });
 
     it('returns /scan for null/undefined', () => {

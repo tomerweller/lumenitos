@@ -4,15 +4,13 @@ import Link from 'next/link';
 import {
   shortenAddressSmall,
   getAddressPath,
-  getStellarExpertUrl,
-  isLiquidityPool,
 } from '@/utils/scan/helpers';
 
 /**
  * Smart address link that routes based on address type
  * - G... addresses -> /scan/account/
  * - C... addresses -> /scan/contract/
- * - L... addresses -> stellar.expert (liquidity pools)
+ * - L... addresses -> /scan/lp/ (liquidity pools)
  *
  * @param {Object} props
  * @param {string} props.address - The full address
@@ -24,20 +22,7 @@ export default function AddressLink({ address, display, short = true }) {
 
   const displayText = display || (short ? shortenAddressSmall(address) : address);
 
-  // Liquidity pools link to stellar.expert
-  if (isLiquidityPool(address)) {
-    return (
-      <a
-        href={getStellarExpertUrl(address)}
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        {displayText}
-      </a>
-    );
-  }
-
-  // Internal addresses use Next.js Link
+  // All address types use internal Next.js Link routing
   return (
     <Link href={getAddressPath(address)}>
       {displayText}

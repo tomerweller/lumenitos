@@ -389,7 +389,7 @@ function parseTransferEventGeneric(event) {
 }
 
 /**
- * Validate if a string is a valid Stellar address (G... or C...)
+ * Validate if a string is a valid Stellar address (G..., C..., or L...)
  * @param {string} address - The address to validate
  * @returns {boolean} Whether the address is valid
  */
@@ -405,6 +405,11 @@ export function isValidAddress(address) {
     if (address.startsWith('C')) {
       StellarSdk.StrKey.decodeContract(address);
       return true;
+    }
+    if (address.startsWith('L')) {
+      // Liquidity pool address - decodes to pool ID
+      const poolId = StellarSdk.StrKey.decodeLiquidityPool(address);
+      return poolId && poolId.length === 32;
     }
     return false;
   } catch {
@@ -655,4 +660,117 @@ export async function getTransaction(txHash) {
     resultXdr: result.resultXdr,
     resultMetaXdr: result.resultMetaXdr,
   };
+}
+
+/**
+ * Parse an Asset XDR into a readable format
+ * @param {object} asset - The XDR Asset object
+ * @returns {object} Parsed asset info with code and issuer
+ */
+function parseAssetXdr(asset) {
+  const assetType = asset.switch().name;
+
+  if (assetType === 'assetTypeNative') {
+    return { code: 'XLM', issuer: null, isNative: true };
+  }
+
+  if (assetType === 'assetTypeCreditAlphanum4') {
+    const alphaNum4 = asset.alphaNum4();
+    return {
+      code: alphaNum4.assetCode().toString().replace(/\0+$/, ''),
+      issuer: StellarSdk.StrKey.encodeEd25519PublicKey(alphaNum4.issuer().ed25519()),
+      isNative: false,
+    };
+  }
+
+  if (assetType === 'assetTypeCreditAlphanum12') {
+    const alphaNum12 = asset.alphaNum12();
+    return {
+      code: alphaNum12.assetCode().toString().replace(/\0+$/, ''),
+      issuer: StellarSdk.StrKey.encodeEd25519PublicKey(alphaNum12.issuer().ed25519()),
+      isNative: false,
+    };
+  }
+
+  return { code: 'UNKNOWN', issuer: null, isNative: false };
+}
+
+/**
+ * Get the contract ID for a classic Stellar asset (SAC)
+ * @param {object} assetInfo - Asset info with code and issuer
+ * @returns {string} The contract ID for the asset
+ */
+function getAssetContractId(assetInfo) {
+  if (assetInfo.isNative) {
+    return StellarSdk.Asset.native().contractId(config.networkPassphrase);
+  }
+  const asset = new StellarSdk.Asset(assetInfo.code, assetInfo.issuer);
+  return asset.contractId(config.networkPassphrase);
+}
+
+/**
+ * Get liquidity pool data from RPC using getLedgerEntries
+ * @param {string} poolAddress - The L... address of the liquidity pool
+ * @returns {Promise<object>} Pool data including assets, reserves, fee, and shares
+ */
+export async function getLiquidityPoolData(poolAddress) {
+  if (!poolAddress || !poolAddress.startsWith('L')) {
+    throw new Error('Invalid liquidity pool address - must start with L');
+  }
+
+  try {
+    // Decode L... address to 32-byte pool ID
+    const poolIdBuffer = StellarSdk.StrKey.decodeLiquidityPool(poolAddress);
+
+    // Build the LedgerKey XDR for a liquidity pool entry
+    const poolIdXdr = StellarSdk.xdr.PoolId.fromXDR(poolIdBuffer);
+    const ledgerKey = StellarSdk.xdr.LedgerKey.liquidityPool(
+      new StellarSdk.xdr.LedgerKeyLiquidityPool({ liquidityPoolId: poolIdXdr })
+    );
+
+    // Call getLedgerEntries RPC with the XDR key
+    const keyBase64 = ledgerKey.toXDR('base64');
+    const result = await rpcCall('getLedgerEntries', { keys: [keyBase64] });
+
+    if (!result.entries || result.entries.length === 0) {
+      throw new Error('Liquidity pool not found');
+    }
+
+    // Parse the ledger entry XDR
+    const entryXdr = result.entries[0].xdr;
+    const ledgerEntry = StellarSdk.xdr.LedgerEntryData.fromXDR(entryXdr, 'base64');
+    const lpEntry = ledgerEntry.liquidityPool();
+    const body = lpEntry.body();
+    const cp = body.constantProduct();
+    const params = cp.params();
+
+    // Parse assets
+    const assetA = parseAssetXdr(params.assetA());
+    const assetB = parseAssetXdr(params.assetB());
+
+    // Get contract IDs for the assets (for linking to token pages)
+    const assetAContractId = getAssetContractId(assetA);
+    const assetBContractId = getAssetContractId(assetB);
+
+    return {
+      poolId: poolAddress,
+      assetA: {
+        ...assetA,
+        contractId: assetAContractId,
+        reserve: cp.reserveA().toString(),
+      },
+      assetB: {
+        ...assetB,
+        contractId: assetBContractId,
+        reserve: cp.reserveB().toString(),
+      },
+      fee: params.fee(), // Fee in basis points (30 = 0.3%)
+      totalPoolShares: cp.totalPoolShares().toString(),
+      trustlineCount: cp.poolSharesTrustLineCount().toString(),
+      latestLedger: result.latestLedger,
+    };
+  } catch (error) {
+    console.error('Error fetching liquidity pool data:', error);
+    throw error;
+  }
 }
