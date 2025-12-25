@@ -533,6 +533,96 @@ export async function decodeXdr(typeName, xdrBase64) {
 }
 
 /**
+ * Get recent invocations for a contract
+ * Fetches all events (any type) from a specific contract
+ * @param {string} contractId - Contract ID to fetch invocations for
+ * @param {number} limit - Maximum events to return (default 100)
+ * @returns {Promise<Array>} Array of parsed invocation events
+ */
+export async function getContractInvocations(contractId, limit = 100) {
+  try {
+    const startLedger = await getLatestLedger();
+
+    // Fetch all events from this contract (no topic filter = all events)
+    const result = await rpcCall('getEvents', {
+      startLedger: startLedger,
+      filters: [
+        {
+          type: 'contract',
+          contractIds: [contractId],
+        }
+      ],
+      pagination: {
+        limit: limit,
+        order: 'desc'
+      }
+    });
+
+    const events = result.events || [];
+    return events.map(event => parseContractEvent(event));
+  } catch (error) {
+    console.error('Error fetching contract invocations:', error);
+    throw error;
+  }
+}
+
+/**
+ * Parse a contract event into structured format
+ * @param {object} event - The event from getEvents
+ * @returns {object} Parsed event info
+ */
+function parseContractEvent(event) {
+  // Parse topic ScVals from base64 to get the event type
+  const topics = (event.topic || []).map(topicXdr => {
+    try {
+      const scVal = StellarSdk.xdr.ScVal.fromXDR(topicXdr, 'base64');
+      // Try to convert to native value for display
+      try {
+        return StellarSdk.scValToNative(scVal);
+      } catch {
+        // For addresses, use our helper
+        if (scVal.switch().name === 'scvAddress') {
+          return scValToAddress(scVal);
+        }
+        return scVal.switch().name;
+      }
+    } catch {
+      return null;
+    }
+  });
+
+  // Get the event type (first topic, usually a symbol)
+  const eventType = topics[0] || 'unknown';
+
+  // Parse value if present
+  let value = null;
+  if (event.value) {
+    try {
+      const valueScVal = StellarSdk.xdr.ScVal.fromXDR(event.value, 'base64');
+      try {
+        value = StellarSdk.scValToNative(valueScVal);
+      } catch {
+        value = valueScVal.switch().name;
+      }
+    } catch {
+      value = null;
+    }
+  }
+
+  return {
+    txHash: event.txHash,
+    ledger: event.ledger,
+    timestamp: event.ledgerClosedAt,
+    contractId: event.contractId,
+    type: event.type,
+    eventType: typeof eventType === 'string' ? eventType : String(eventType),
+    topics: topics.slice(1), // Exclude first topic (event name)
+    value,
+    inSuccessfulContractCall: event.inSuccessfulContractCall,
+  };
+}
+
+/**
  * Get transaction details from RPC
  * @param {string} txHash - The transaction hash
  * @returns {Promise<object>} Transaction data including XDRs and events
