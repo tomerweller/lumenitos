@@ -570,12 +570,24 @@ export function formatOperations(envelope) {
   else if (envelope.v0?.tx?.operations) {
     operations = envelope.v0.tx.operations;
   }
-  // fee bump envelope
+  // fee bump envelope (tx_fee_bump from stellar-xdr-json)
+  else if (envelope.tx_fee_bump?.tx?.inner_tx?.tx?.tx?.operations) {
+    operations = envelope.tx_fee_bump.tx.inner_tx.tx.tx.operations;
+  }
+  // fee bump envelope (camelCase variant)
+  else if (envelope.txFeeBump?.tx?.innerTx?.tx?.tx?.operations) {
+    operations = envelope.txFeeBump.tx.innerTx.tx.tx.operations;
+  }
+  // fee bump envelope (fee_bump variant with v1)
   else if (envelope.fee_bump?.tx?.inner_tx?.v1?.tx?.operations) {
     operations = envelope.fee_bump.tx.inner_tx.v1.tx.operations;
   }
   else if (envelope.feeBump?.tx?.innerTx?.v1?.tx?.operations) {
     operations = envelope.feeBump.tx.innerTx.v1.tx.operations;
+  }
+  // fee bump envelope (fee_bump variant with tx.tx)
+  else if (envelope.fee_bump?.tx?.inner_tx?.tx?.tx?.operations) {
+    operations = envelope.fee_bump.tx.inner_tx.tx.tx.operations;
   }
   // Nested tx.tx format (from some XDR decoders)
   else if (envelope.tx?.tx?.operations) {

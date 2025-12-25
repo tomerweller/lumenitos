@@ -13,7 +13,12 @@ import {
   removeTrackedAsset,
 } from '@/utils/scan';
 import { rawToDisplay, formatTokenBalance } from '@/utils/stellar/helpers';
-import config from '@/utils/config';
+import {
+  ScanHeader,
+  AddressDisplay,
+  BalanceList,
+  TransferList,
+} from '../../components';
 import '../../scan.css';
 
 export default function AccountPage({ params }) {
@@ -23,8 +28,6 @@ export default function AccountPage({ params }) {
   const [tokenInfo, setTokenInfo] = useState({}); // { contractId: { symbol, decimals } }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [copied, setCopied] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(10);
   const [showAddAsset, setShowAddAsset] = useState(false);
   const [newAssetAddress, setNewAssetAddress] = useState('');
   const [addingAsset, setAddingAsset] = useState(false);
@@ -41,7 +44,6 @@ export default function AccountPage({ params }) {
   const loadData = async () => {
     setLoading(true);
     setError(null);
-    setVisibleCount(10);
 
     try {
       // Step 1: Fetch all transfers (up to 1000)
@@ -117,36 +119,16 @@ export default function AccountPage({ params }) {
     }
   };
 
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(address);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const shortenAddress = (addr) => {
-    if (!addr || addr.length < 12) return addr;
-    return `${addr.substring(0, 6)}....${addr.substring(addr.length - 6)}`;
-  };
-
-  const shortenAddressSmall = (addr) => {
-    if (!addr || addr.length < 12) return addr;
-    return `${addr.substring(0, 4)}..${addr.substring(addr.length - 4)}`;
-  };
-
-  const formatAmount = (amount, contractId) => {
-    const info = tokenInfo[contractId];
+  // Format transfer for display - adds formatted amount and symbol
+  const formatTransfer = (t) => {
+    const info = tokenInfo[t.contractId];
     const decimals = info?.decimals ?? 7;
-    const displayAmount = rawToDisplay(amount, decimals);
-    return formatTokenBalance(displayAmount, decimals);
-  };
-
-  const formatTimestamp = (timestamp) => {
-    if (!timestamp) return '';
-    return new Date(timestamp).toLocaleString();
-  };
-
-  const getSymbol = (contractId) => {
-    return tokenInfo[contractId]?.symbol || '???';
+    const displayAmount = rawToDisplay(t.amount, decimals);
+    return {
+      ...t,
+      amount: formatTokenBalance(displayAmount, decimals),
+      symbol: info?.symbol || '???',
+    };
   };
 
   const handleAddAsset = async (e) => {
@@ -212,16 +194,9 @@ export default function AccountPage({ params }) {
   if (!isValid) {
     return (
       <div className="scan-page">
-        <h1>LUMENITOS SCAN</h1>
-        <p className={`network-label ${config.isTestnet ? 'testnet' : 'mainnet'}`}>
-          {config.isTestnet ? config.stellar.network : 'MAINNET'}
-        </p>
-        <p className="subtitle">mini token explorer</p>
-
+        <ScanHeader />
         <hr />
-
         <p className="error">Invalid address: {address}</p>
-
         <p>
           <Link href="/scan">back to search</Link>
         </p>
@@ -231,24 +206,10 @@ export default function AccountPage({ params }) {
 
   return (
     <div className="scan-page">
-      <h1>LUMENITOS SCAN</h1>
-      <p className={`network-label ${config.isTestnet ? 'testnet' : 'mainnet'}`}>
-        {config.isTestnet ? config.stellar.network : 'MAINNET'}
-      </p>
-      <p className="subtitle">mini token explorer</p>
-
+      <ScanHeader />
       <hr />
 
-      <p>
-        {shortenAddress(address)}{' '}
-        (<a href="#" onClick={(e) => { e.preventDefault(); copyToClipboard(); }}>
-          {copied ? 'copied!' : 'copy'}
-        </a>)
-        {' | '}
-        <a href={`${config.stellar.explorerUrl}/${address.startsWith('C') ? 'contract' : 'account'}/${address}`} target="_blank" rel="noopener noreferrer">
-          stellar.expert
-        </a>
-      </p>
+      <AddressDisplay address={address} />
 
       {address.startsWith('C') && (
         <p>
@@ -266,24 +227,10 @@ export default function AccountPage({ params }) {
         <>
           <h2>balances</h2>
 
-          {balances.length === 0 ? (
-            <p>no token balances found</p>
-          ) : (
-            balances.map((b) => (
-              <p key={b.contractId} className="balance-row">
-                <span className="balance-amount">
-                  {b.balance}{' '}
-                  <Link href={`/scan/token/${b.contractId}`}>{b.symbol}</Link>
-                </span>
-                {b.isManual && (
-                  <>
-                    {' '}
-                    (<a href="#" onClick={(e) => { e.preventDefault(); handleRemoveAsset(b.contractId); }}>remove</a>)
-                  </>
-                )}
-              </p>
-            ))
-          )}
+          <BalanceList
+            balances={balances}
+            onRemove={handleRemoveAsset}
+          />
 
           <p>
             <a href="#" onClick={(e) => { e.preventDefault(); setShowAddAsset(true); }}>+ add asset</a>
@@ -327,35 +274,11 @@ export default function AccountPage({ params }) {
 
           <h2>transfers</h2>
 
-          {transfers.length === 0 ? (
-            <p>no transfers found</p>
-          ) : (
-            <>
-              <div className="transfer-list">
-                {transfers.slice(0, visibleCount).map((t, index) => (
-                  <p key={`${t.txHash}-${index}`} className="transfer-item">
-                    {t.direction === 'sent' ? (
-                      <>sent {formatAmount(t.amount, t.contractId)} <Link href={`/scan/token/${t.contractId}`}>{getSymbol(t.contractId)}</Link> to <Link href={`/scan/account/${t.counterparty}`}>{shortenAddressSmall(t.counterparty)}</Link></>
-                    ) : (
-                      <>received {formatAmount(t.amount, t.contractId)} <Link href={`/scan/token/${t.contractId}`}>{getSymbol(t.contractId)}</Link> from <Link href={`/scan/account/${t.counterparty}`}>{shortenAddressSmall(t.counterparty)}</Link></>
-                    )}
-                    <br />
-                    <small>{formatTimestamp(t.timestamp)} (<Link href={`/scan/tx/${t.txHash}`}>{t.txHash?.substring(0, 4)}</Link>)</small>
-                  </p>
-                ))}
-              </div>
-
-              <p>
-                {visibleCount < transfers.length && (
-                  <>
-                    <a href="#" onClick={(e) => { e.preventDefault(); setVisibleCount(v => v + 10); }}>show more</a>
-                    {' | '}
-                  </>
-                )}
-                <a href="#" onClick={(e) => { e.preventDefault(); loadData(); }}>refresh</a>
-              </p>
-            </>
-          )}
+          <TransferList
+            transfers={transfers}
+            formatTransfer={formatTransfer}
+            onRefresh={loadData}
+          />
         </>
       )}
 

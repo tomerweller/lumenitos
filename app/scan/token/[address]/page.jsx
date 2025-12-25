@@ -8,7 +8,12 @@ import {
   getTokenTransfers,
 } from '@/utils/scan';
 import { rawToDisplay, formatTokenBalance } from '@/utils/stellar/helpers';
-import config from '@/utils/config';
+import {
+  ScanHeader,
+  AddressDisplay,
+  AddressLink,
+} from '../../components';
+import { formatTimestamp } from '@/utils/scan/helpers';
 import '../../scan.css';
 
 export default function TokenPage({ params }) {
@@ -17,7 +22,6 @@ export default function TokenPage({ params }) {
   const [transfers, setTransfers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [copied, setCopied] = useState(false);
   const [visibleCount, setVisibleCount] = useState(10);
 
   const isContract = address?.startsWith('C');
@@ -51,31 +55,10 @@ export default function TokenPage({ params }) {
     }
   };
 
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(address);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const shortenAddress = (addr) => {
-    if (!addr || addr.length < 12) return addr;
-    return `${addr.substring(0, 6)}....${addr.substring(addr.length - 6)}`;
-  };
-
-  const shortenAddressSmall = (addr) => {
-    if (!addr || addr.length < 12) return addr;
-    return `${addr.substring(0, 4)}..${addr.substring(addr.length - 4)}`;
-  };
-
   const formatAmount = (amount) => {
     const decimals = metadata?.decimals ?? 7;
     const displayAmount = rawToDisplay(amount, decimals);
     return formatTokenBalance(displayAmount, decimals);
-  };
-
-  const formatTimestamp = (timestamp) => {
-    if (!timestamp) return '';
-    return new Date(timestamp).toLocaleString();
   };
 
   const getSymbol = () => {
@@ -86,20 +69,13 @@ export default function TokenPage({ params }) {
   if (!isValid) {
     return (
       <div className="scan-page">
-        <h1>LUMENITOS SCAN</h1>
-        <p className={`network-label ${config.isTestnet ? 'testnet' : 'mainnet'}`}>
-          {config.isTestnet ? config.stellar.network : 'MAINNET'}
-        </p>
-        <p className="subtitle">mini token explorer</p>
-
+        <ScanHeader />
         <hr />
-
         <p className="error">
           {!address?.startsWith('C')
             ? 'Token view requires a contract address (C...)'
             : `Invalid contract address: ${address}`}
         </p>
-
         <p>
           <Link href="/scan">back to search</Link>
         </p>
@@ -109,24 +85,10 @@ export default function TokenPage({ params }) {
 
   return (
     <div className="scan-page">
-      <h1>LUMENITOS SCAN</h1>
-      <p className={`network-label ${config.isTestnet ? 'testnet' : 'mainnet'}`}>
-        {config.isTestnet ? config.stellar.network : 'MAINNET'}
-      </p>
-      <p className="subtitle">mini token explorer</p>
-
+      <ScanHeader />
       <hr />
 
-      <p>
-        {shortenAddress(address)}{' '}
-        (<a href="#" onClick={(e) => { e.preventDefault(); copyToClipboard(); }}>
-          {copied ? 'copied!' : 'copy'}
-        </a>)
-        {' | '}
-        <a href={`${config.stellar.explorerUrl}/contract/${address}`} target="_blank" rel="noopener noreferrer">
-          stellar.expert
-        </a>
-      </p>
+      <AddressDisplay address={address} />
 
       <p>
         <Link href={`/scan/contract/${address}`}>switch to contract view</Link>
@@ -157,9 +119,9 @@ export default function TokenPage({ params }) {
               <div className="transfer-list">
                 {transfers.slice(0, visibleCount).map((t, index) => (
                   <p key={`${t.txHash}-${index}`} className="transfer-item">
-                    <Link href={`/scan/account/${t.from}`}>{shortenAddressSmall(t.from)}</Link>
+                    <AddressLink address={t.from} />
                     {' -> '}
-                    <Link href={`/scan/account/${t.to}`}>{shortenAddressSmall(t.to)}</Link>
+                    <AddressLink address={t.to} />
                     {': '}
                     {formatAmount(t.amount)} {getSymbol()}
                     <br />

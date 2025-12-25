@@ -391,13 +391,41 @@ export default function TransactionPage({ params }) {
                   ? formatTokenBalance(rawToDisplay(rawAmount, decimals), decimals)
                   : null;
 
-                // Extract addresses from topics (topics[1] = from, topics[2] = to for transfers)
+                // Extract addresses from topics based on event type
+                // SEP-41 topic structure varies by event:
+                // - transfer: [symbol, from_addr, to_addr]
+                // - mint: [symbol, to_addr, ...]
+                // - burn/clawback: [symbol, from_addr, ...]
+                // - approve: [symbol, from_addr, spender_addr]
+                // - set_admin: [symbol, new_admin_addr]
                 const getAddress = (topicIndex) => event.topics?.[topicIndex]?.address;
                 const minify = (addr) => addr ? addr.substring(0, 5) : null;
                 const addrLink = (addr) => addr?.startsWith('C') ? `/scan/contract/${addr}` : `/scan/account/${addr}`;
 
-                const fromAddr = getAddress(1);
-                const toAddr = getAddress(2);
+                // Determine from/to addresses based on event type
+                let fromAddr = null;
+                let toAddr = null;
+
+                switch (event.eventType) {
+                  case 'transfer':
+                  case 'approve':
+                    fromAddr = getAddress(1);
+                    toAddr = getAddress(2);
+                    break;
+                  case 'mint':
+                    toAddr = getAddress(1); // mint only has recipient
+                    break;
+                  case 'burn':
+                  case 'clawback':
+                    fromAddr = getAddress(1); // burn/clawback only has source
+                    break;
+                  case 'set_admin':
+                    fromAddr = getAddress(1); // new admin address
+                    break;
+                  default:
+                    fromAddr = getAddress(1);
+                    toAddr = getAddress(2);
+                }
 
                 // Render human-readable event description
                 const renderEventDescription = () => {

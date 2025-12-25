@@ -962,7 +962,7 @@ describe('formatOperations - Envelope Parsing', () => {
     expect(result[1].type).toBe('create_account');
   });
 
-  it('extracts operations from fee bump envelope', () => {
+  it('extracts operations from fee bump envelope (fee_bump.tx.inner_tx.v1)', () => {
     const envelope = {
       fee_bump: {
         tx: {
@@ -980,6 +980,72 @@ describe('formatOperations - Envelope Parsing', () => {
     };
     const result = formatOperations(envelope);
     expect(result).toHaveLength(1);
+  });
+
+  it('extracts operations from tx_fee_bump envelope (stellar-xdr-json format)', () => {
+    // This format is what stellar-xdr-json library produces for fee bump transactions
+    const envelope = {
+      tx_fee_bump: {
+        tx: {
+          inner_tx: {
+            tx: {
+              tx: {
+                operations: [
+                  { body: { payment: { destination: 'GDEST...', asset: { native: null }, amount: '10000000' } } },
+                  { body: { create_account: { destination: 'GNEW...', starting_balance: '50000000' } } },
+                ],
+              },
+            },
+          },
+        },
+      },
+    };
+    const result = formatOperations(envelope);
+    expect(result).toHaveLength(2);
+    expect(result[0].type).toBe('payment');
+    expect(result[1].type).toBe('create_account');
+  });
+
+  it('extracts operations from txFeeBump envelope (camelCase variant)', () => {
+    const envelope = {
+      txFeeBump: {
+        tx: {
+          innerTx: {
+            tx: {
+              tx: {
+                operations: [
+                  { body: { payment: { destination: 'GDEST...', asset: { native: null }, amount: '10000000' } } },
+                ],
+              },
+            },
+          },
+        },
+      },
+    };
+    const result = formatOperations(envelope);
+    expect(result).toHaveLength(1);
+  });
+
+  it('extracts operations from fee_bump envelope (fee_bump.tx.inner_tx.tx.tx)', () => {
+    // Alternative fee bump structure with tx.tx path
+    const envelope = {
+      fee_bump: {
+        tx: {
+          inner_tx: {
+            tx: {
+              tx: {
+                operations: [
+                  { body: { payment: { destination: 'GDEST...', asset: { native: null }, amount: '20000000' } } },
+                ],
+              },
+            },
+          },
+        },
+      },
+    };
+    const result = formatOperations(envelope);
+    expect(result).toHaveLength(1);
+    expect(result[0].description).toBe('pay 2 XLM to GDEST');
   });
 
   it('handles null envelope', () => {

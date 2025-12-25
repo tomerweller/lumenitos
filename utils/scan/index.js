@@ -4,6 +4,10 @@
  */
 
 import * as StellarSdk from '@stellar/stellar-sdk';
+
+// Re-export helpers for convenient imports
+export * from './helpers';
+export * from './operations';
 import config from '../config';
 import { scValToAddress, scValToAmount } from '../stellar/helpers';
 
