@@ -4,6 +4,11 @@ const nextConfig = {
     const network = process.env.NEXT_PUBLIC_STELLAR_NETWORK || 'testnet';
     return [
       {
+        source: '/wallet',
+        destination: '/',
+        permanent: true,
+      },
+      {
         source: '/scan',
         destination: `https://lumenitos-scan.vercel.app/?network=${network}`,
         permanent: false,
